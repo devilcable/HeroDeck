@@ -32,28 +32,30 @@ async function withChannel<T>(
 }
 
 /** Lua expression of the i-th (0-based cell index) recorded texture of the strip. */
-const tex = (cellIndex: number) => `__frames[1].textures[${cellIndex + 1}]`;
+const STRIP = "HeroDeckNS.Channel.frame";
+const tex = (cellIndex: number) => `${STRIP}.textures[${cellIndex + 1}]`;
 
 describe("channel strip", () => {
   it("strip is parented to WorldFrame, top-left, TOOLTIP strata, ignores parent scale", async () => {
     await withChannel(async (lua) => {
       await lua.doString("HeroDeckNS.Channel:Init()");
-      expect(await lua.doString("return #__frames")).toBe(1);
-      expect(await lua.doString("return __frames[1].parent == WorldFrame")).toBe(true);
-      expect(await lua.doString("return __frames[1].strata")).toBe("TOOLTIP");
-      expect(await lua.doString("return __frames[1].ignoreParentScale")).toBe(true);
-      expect(await lua.doString("return __frames[1].scale")).toBe(1);
-      expect(await lua.doString("return __frames[1].points[1].point")).toBe("TOPLEFT");
-      expect(await lua.doString("return __frames[1].points[1].relativeTo == WorldFrame")).toBe(true);
-      expect(await lua.doString("return __frames[1].points[1].relativePoint")).toBe("TOPLEFT");
+      expect(await lua.doString(`return ${STRIP}.parent == WorldFrame`)).toBe(true);
+      expect(await lua.doString(`return ${STRIP}.strata`)).toBe("TOOLTIP");
+      expect(await lua.doString(`return ${STRIP}.frameLevel`)).toBe(10000);
+      expect(await lua.doString(`return ${STRIP}.ignoreParentScale`)).toBe(true);
+      expect(await lua.doString(`return ${STRIP}.scale`)).toBe(1);
+      expect(await lua.doString(`return ${STRIP}.points[1].point`)).toBe("TOPLEFT");
+      expect(await lua.doString(`return ${STRIP}.points[1].relativeTo == WorldFrame`)).toBe(true);
+      expect(await lua.doString(`return ${STRIP}.points[1].relativePoint`)).toBe("TOPLEFT");
     });
   });
 
   it("Init twice does not create a second frame", async () => {
     await withChannel(async (lua) => {
+      const before = (await lua.doString("return #__frames")) as number;
       await lua.doString("HeroDeckNS.Channel:Init(); HeroDeckNS.Channel:Init()");
-      expect(await lua.doString("return #__frames")).toBe(1);
-      expect(await lua.doString("return #__frames[1].textures")).toBe(4);
+      expect(await lua.doString("return #__frames")).toBe(before + 1);
+      expect(await lua.doString(`return #${STRIP}.textures`)).toBe(4);
     });
   });
 
@@ -71,7 +73,7 @@ describe("channel strip", () => {
     await withChannel(async (lua) => {
       const vec = vectors.fields.find((f) => f.value === 87)!;
       await lua.doString("local C = HeroDeckNS.Channel; C:Init(); C:Register(0); C:SetByte(0, 87)");
-      expect(await lua.doString("return #__frames[1].textures")).toBe(6);
+      expect(await lua.doString(`return #${STRIP}.textures`)).toBe(6);
       for (const [n, cell] of [[4, vec.cells[0]], [5, vec.cells[1]]] as const) {
         const c = await lua.doString(`local c = ${tex(n)}.color; return {c.r, c.g, c.b}`);
         expect(c).toEqual(cell);
@@ -80,7 +82,7 @@ describe("channel strip", () => {
         expect(Math.abs(x - n * 3 * unit)).toBeLessThan(1e-9);
         expect(await lua.doString(`return ${tex(n)}.points[1].y`)).toBe(0);
         expect(await lua.doString(`return ${tex(n)}.points[1].point`)).toBe("TOPLEFT");
-        expect(await lua.doString(`return ${tex(n)}.points[1].relativeTo == __frames[1]`)).toBe(true);
+        expect(await lua.doString(`return ${tex(n)}.points[1].relativeTo == ${STRIP}`)).toBe(true);
       }
     });
   });
@@ -89,7 +91,7 @@ describe("channel strip", () => {
     await withChannel(async (lua) => {
       const vec = vectors.fields.find((f) => f.value === 100)!;
       await lua.doString("local C = HeroDeckNS.Channel; C:Init(); C:Register(0); C:SetByte(0, 87); C:SetByte(0, 100)");
-      expect(await lua.doString("return #__frames[1].textures")).toBe(6);
+      expect(await lua.doString(`return #${STRIP}.textures`)).toBe(6);
       for (const [n, cell] of [[4, vec.cells[0]], [5, vec.cells[1]]] as const) {
         const c = await lua.doString(`local c = ${tex(n)}.color; return {c.r, c.g, c.b}`);
         expect(c).toEqual(cell);
@@ -117,16 +119,16 @@ describe("channel strip", () => {
   it("relayouts on DISPLAY_SIZE_CHANGED and UI_SCALE_CHANGED", async () => {
     await withChannel(async (lua) => {
       await lua.doString("local C = HeroDeckNS.Channel; C:Init(); C:Register(0); C:SetByte(0, 87)");
-      expect(await lua.doString("return __frames[1].events.DISPLAY_SIZE_CHANGED")).toBe(true);
-      expect(await lua.doString("return __frames[1].events.UI_SCALE_CHANGED")).toBe(true);
+      expect(await lua.doString(`return ${STRIP}.events.DISPLAY_SIZE_CHANGED`)).toBe(true);
+      expect(await lua.doString(`return ${STRIP}.events.UI_SCALE_CHANGED`)).toBe(true);
 
       lua.global.set("GetPhysicalScreenSize", () => LuaMultiReturn.of(2560, 1440));
       for (const event of ["UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED"]) {
         // reset to the old size, then fire the event with the new one
         await lua.doString(`
           local C = HeroDeckNS.Channel
-          for _, t in ipairs(__frames[1].textures) do t.width = 0; t.height = 0 end
-          local f = __frames[1]
+          for _, t in ipairs(HeroDeckNS.Channel.frame.textures) do t.width = 0; t.height = 0 end
+          local f = HeroDeckNS.Channel.frame
           f.scripts.OnEvent(f, "${event}")
         `);
         const expected = (3 * 768) / 1440;

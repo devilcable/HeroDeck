@@ -16,11 +16,12 @@ export const ADDON_FILES: string[] = readFileSync(join(ADDON_DIR, "HeroDeck.toc"
   .filter((line) => line !== "" && !line.startsWith("#"));
 
 /**
- * Lua-side default mocks: recording frames and textures. Any method that is not
- * implemented below is a no-op, so code that only calls such methods keeps working.
+ * Lua-side default mocks: recording frames and textures. Any method (CamelCase name)
+ * that is not implemented below is a no-op, so code that only calls such methods keeps
+ * working. Unset data fields (lowercase names) read as nil.
  *
  * Recorded per frame (in the global list __frames, creation order): parent, strata,
- * scale, ignoreParentScale, events (set of registered names), scripts (by name),
+ * scale, frameLevel, ignoreParentScale, events (set of registered names), scripts (by name),
  * points, textures (creation order).
  * Recorded per texture: color = {r,g,b,a} (rgb stored x255 and rounded), width,
  * height, points = { {point, relativeTo, relativePoint, x, y}, ... }.
@@ -31,7 +32,15 @@ const LUA_DEFAULTS = `
     local obj = {}
     return setmetatable(obj, {
       __index = function(_, key)
-        return methods[key] or noop
+        if methods[key] then
+          return methods[key]
+        end
+        -- WoW methods are CamelCase (Show, SetSize...). Anything else is a data field
+        -- (color, width, scripts...): unset means nil, like on the real objects.
+        if type(key) == "string" and key:match("^%u") then
+          return noop
+        end
+        return nil
       end,
     })
   end
@@ -75,6 +84,7 @@ const LUA_DEFAULTS = `
     end,
     SetParent = function(self, parent) self.parent = parent end,
     SetFrameStrata = function(self, strata) self.strata = strata end,
+    SetFrameLevel = function(self, level) self.frameLevel = level end,
     SetScale = function(self, scale) self.scale = scale end,
     SetIgnoreParentScale = function(self, ignore) self.ignoreParentScale = ignore end,
     RegisterEvent = function(self, event) self.events[event] = true end,

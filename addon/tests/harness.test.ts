@@ -15,6 +15,20 @@ describe("lua harness", () => {
     }
   });
 
+  it("unset data fields read as nil, unknown methods stay callable", async () => {
+    const lua = await createLua();
+    try {
+      await lua.doString("f = CreateFrame('Frame'); t = f:CreateTexture()");
+      expect(await lua.doString("return f.ignoreParentScale == nil")).toBe(true);
+      expect(await lua.doString("return f.scale == nil and f.strata == nil and f.frameLevel == nil")).toBe(true);
+      expect(await lua.doString("return t.color == nil and t.width == nil")).toBe(true);
+      expect(await lua.doString("return f.scripts.OnEvent == nil")).toBe(true);
+      expect(await lua.doString("return type(f.Show) == 'function' and f:Show() == nil")).toBe(true);
+    } finally {
+      lua.global.close();
+    }
+  });
+
   it("mocks override the defaults", async () => {
     const lua = await createLua({ GetInventoryItemDurability: () => 7 });
     try {
