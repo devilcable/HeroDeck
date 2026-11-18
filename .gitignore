@@ -1,0 +1,14 @@
+# Node / Stream Deck plugin
+node_modules/
+dist/
+*.streamDeckPlugin
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude local settings
+.claude/settings.local.json
