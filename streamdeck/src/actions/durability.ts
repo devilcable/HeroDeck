@@ -1,4 +1,4 @@
-import {
+import streamDeck, {
   action,
   type DidReceiveSettingsEvent,
   type KeyAction,
@@ -8,6 +8,8 @@ import {
 } from "@elgato/streamdeck";
 import type { ChannelFrame, ChannelReader } from "../channel/reader";
 import { diffView, type KeyView, viewFor } from "../durability/view";
+
+const logger = streamDeck.logger.createScope("durability");
 
 type Settings = { showPercent?: boolean };
 
@@ -64,7 +66,12 @@ export class DurabilityAction extends SingletonAction<Settings> {
     const next = viewFor(state.frame, state.showPercent);
     const change = diffView(state.shown, next);
     state.shown = next;
-    if (change.image !== undefined) void state.key.setImage(change.image);
-    if (change.title !== undefined) void state.key.setTitle(change.title);
+    // A rejected update must not become an unhandled rejection (it can crash the plugin on Node 24).
+    if (change.image !== undefined) {
+      state.key.setImage(change.image).catch((err: unknown) => logger.warn("setImage failed:", err));
+    }
+    if (change.title !== undefined) {
+      state.key.setTitle(change.title).catch((err: unknown) => logger.warn("setTitle failed:", err));
+    }
   }
 }
