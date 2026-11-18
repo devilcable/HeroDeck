@@ -37,6 +37,18 @@ local function placeTexture(self, texture, cellIndex, unit)
   texture:SetPoint("TOPLEFT", self.frame, "TOPLEFT", cellIndex * size, 0)
 end
 
+-- Size the strip frame to the cells drawn so far (highest cell index + 1, one cell high).
+local function sizeFrame(self, unit)
+  local count = 0
+  for cellIndex in pairs(self.cells) do
+    if cellIndex + 1 > count then
+      count = cellIndex + 1
+    end
+  end
+  local size = self.CELL_PX * unit
+  self.frame:SetSize(count * size, size)
+end
+
 local function createCell(self, cellIndex, cell)
   local texture = self.frame:CreateTexture(nil, "OVERLAY")
   if texture.SetSnapToPixelGrid then
@@ -50,6 +62,7 @@ local function createCell(self, cellIndex, cell)
   local unit = unitPerPixel()
   if unit then
     placeTexture(self, texture, cellIndex, unit)
+    sizeFrame(self, unit)
   end
   return texture
 end
@@ -63,6 +76,7 @@ function Channel:Layout()
   for cellIndex, texture in pairs(self.cells) do
     placeTexture(self, texture, cellIndex, unit)
   end
+  sizeFrame(self, unit)
 end
 
 -- Create the strip frame once and draw the header cells.

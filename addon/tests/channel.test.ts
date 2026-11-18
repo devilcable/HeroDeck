@@ -142,6 +142,28 @@ describe("channel strip", () => {
     });
   });
 
+  it("strip frame is sized to the cells drawn (grows with fields, follows relayout)", async () => {
+    await withChannel(
+      async (lua) => {
+        const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+        const size = (3 * 768) / 1080;
+        await lua.doString("HeroDeckNS.Channel:Init()");
+        expect(near((await lua.doString(`return ${STRIP}.width`)) as number, 4 * size)).toBe(true);
+        expect(near((await lua.doString(`return ${STRIP}.height`)) as number, size)).toBe(true);
+
+        await lua.doString("local C = HeroDeckNS.Channel; C:Register(0); C:SetByte(0, 87)");
+        expect(near((await lua.doString(`return ${STRIP}.width`)) as number, 6 * size)).toBe(true);
+
+        lua.global.set("GetPhysicalScreenSize", () => LuaMultiReturn.of(2560, 1440));
+        await lua.doString(`local f = ${STRIP}; f.width = 0; f.height = 0; f.scripts.OnEvent(f, "DISPLAY_SIZE_CHANGED")`);
+        const size2 = (3 * 768) / 1440;
+        expect(near((await lua.doString(`return ${STRIP}.width`)) as number, 6 * size2)).toBe(true);
+        expect(near((await lua.doString(`return ${STRIP}.height`)) as number, size2)).toBe(true);
+      },
+      { GetPhysicalScreenSize: () => LuaMultiReturn.of(1920, 1080) },
+    );
+  });
+
   it("SetByte on an unregistered field errors", async () => {
     await withChannel(async (lua) => {
       await lua.doString("HeroDeckNS.Channel:Init()");
