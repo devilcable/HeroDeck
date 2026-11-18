@@ -17,6 +17,14 @@ export function pickWowWindow<T extends WindowInfo>(windows: T[]): T | null {
   return candidates.find((w) => w.focused) ?? candidates[0] ?? null;
 }
 
+/** The window and monitor geometry used by the monitor fallback, for diagnostics. */
+export interface CaptureGeometry {
+  window: Rect;
+  monitor: Rect;
+  monitorImage: { width: number; height: number };
+  scaleFactor: number;
+}
+
 export interface FrameSource {
   /** A capture of the game's top-left corner (RGBA), or null when there is nothing to read. */
   grab(): Promise<RawImage | null>;
@@ -47,8 +55,9 @@ export function clampCrop(x: number, y: number, width: number, height: number, i
 /**
  * Where the game's top-left corner sits in a capture of its monitor, as a crop rectangle. The
  * window position is in monitor coordinates; it is scaled by (capture size / monitor size) in case
- * the capture is in physical pixels and the coordinates are not. Null when the window's top-left
- * corner is off that monitor.
+ * the capture is in physical pixels and the coordinates are not. A slightly negative origin (a
+ * maximized or borderless window sits at about -8,-8) is clamped to 0: the strip search absorbs
+ * the offset. Null only when the crop has no area inside the monitor image.
  */
 export function monitorCropRect(
   win: { x: number; y: number },
@@ -59,8 +68,8 @@ export function monitorCropRect(
   const scaleY = monitor.height > 0 ? image.height / monitor.height : 1;
   const x = Math.round((win.x - monitor.x) * scaleX);
   const y = Math.round((win.y - monitor.y) * scaleY);
-  if (x < 0 || y < 0) return null;
-  return clampCrop(x, y, CROP_W, CROP_H, image.width, image.height);
+  if (x + CROP_W <= 0 || y + CROP_H <= 0) return null;
+  return clampCrop(Math.max(0, x), Math.max(0, y), CROP_W, CROP_H, image.width, image.height);
 }
 
 async function toRawImage(img: Image, rect: Rect | null): Promise<RawImage | null> {
@@ -76,6 +85,18 @@ async function toRawImage(img: Image, rect: Rect | null): Promise<RawImage | nul
  * monitor instead and crops at the window's position.
  */
 export class WowWindowSource implements FrameSource {
+  private readonly onError?: (err: unknown) => void;
+  private readonly onGeometry?: (geometry: CaptureGeometry) => void;
+
+  /**
+   * `onError` receives every error that `grab` swallows before it returns null. `onGeometry`
+   * receives the window and monitor geometry whenever the monitor fallback is used (diagnostics).
+   */
+  constructor(options: { onError?: (err: unknown) => void; onGeometry?: (geometry: CaptureGeometry) => void } = {}) {
+    this.onError = options.onError;
+    this.onGeometry = options.onGeometry;
+  }
+
   async grab(): Promise<RawImage | null> {
     try {
       const { Window } = await import("node-screenshots");
@@ -95,13 +116,26 @@ export class WowWindowSource implements FrameSource {
 
       const monitor = win.currentMonitor();
       const monitorImage = await monitor.captureImage();
-      const rect = monitorCropRect(
-        { x: win.x(), y: win.y() },
-        { x: monitor.x(), y: monitor.y(), width: monitor.width(), height: monitor.height() },
-        monitorImage,
-      );
+      const windowRect = { x: win.x(), y: win.y(), width: win.width(), height: win.height() };
+      const monitorRect = { x: monitor.x(), y: monitor.y(), width: monitor.width(), height: monitor.height() };
+      try {
+        this.onGeometry?.({
+          window: windowRect,
+          monitor: monitorRect,
+          monitorImage: { width: monitorImage.width, height: monitorImage.height },
+          scaleFactor: monitor.scaleFactor(),
+        });
+      } catch {
+        // diagnostics must not break the read
+      }
+      const rect = monitorCropRect(windowRect, monitorRect, monitorImage);
       return await toRawImage(monitorImage, rect);
-    } catch {
+    } catch (err) {
+      try {
+        this.onError?.(err);
+      } catch {
+        // a failing error handler must not break the read
+      }
       return null;
     }
   }

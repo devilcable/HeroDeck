@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { clampCrop, CROP_H, CROP_W, monitorCropRect, pickWowWindow, STRIP_PX, WOW_TITLE } from "./capture";
+import { describe, expect, it, vi } from "vitest";
+import {
+  clampCrop,
+  CROP_H,
+  CROP_W,
+  monitorCropRect,
+  pickWowWindow,
+  STRIP_PX,
+  WOW_TITLE,
+} from "./capture";
 
 const win = (title: string, minimized = false, focused = false) => ({ title, minimized, focused });
 
@@ -79,10 +87,17 @@ describe("monitorCropRect", () => {
     });
   });
 
-  it("is null when the window's top-left is off the monitor", () => {
-    expect(monitorCropRect({ x: -10, y: 0 }, mon, image)).toBeNull();
-    expect(monitorCropRect({ x: 0, y: -10 }, mon, image)).toBeNull();
+  it("clamps a slightly negative origin to 0 (maximized or borderless window at -8,-8)", () => {
+    expect(monitorCropRect({ x: -8, y: -8 }, mon, image)).toEqual({ x: 0, y: 0, width: CROP_W, height: CROP_H });
+    expect(monitorCropRect({ x: -10, y: 0 }, mon, image)).toEqual({ x: 0, y: 0, width: CROP_W, height: CROP_H });
+    expect(monitorCropRect({ x: 0, y: -10 }, mon, image)).toEqual({ x: 0, y: 0, width: CROP_W, height: CROP_H });
+  });
+
+  it("is null when the crop has no area inside the monitor image", () => {
     expect(monitorCropRect({ x: 1920, y: 0 }, mon, image)).toBeNull();
+    expect(monitorCropRect({ x: 0, y: 1080 }, mon, image)).toBeNull();
+    expect(monitorCropRect({ x: -CROP_W, y: 0 }, mon, image)).toBeNull();
+    expect(monitorCropRect({ x: 0, y: -CROP_H }, mon, image)).toBeNull();
   });
 
   it("scales the offset when the monitor image is larger than the monitor size (DPI scaling)", () => {
@@ -92,5 +107,48 @@ describe("monitorCropRect", () => {
       width: CROP_W,
       height: CROP_H,
     });
+  });
+});
+
+describe("WowWindowSource error reporting", () => {
+  it("passes a swallowed error to onError and returns null", async () => {
+    const boom = new Error("capture failed");
+    vi.resetModules();
+    vi.doMock("node-screenshots", () => ({
+      Window: {
+        all: () => {
+          throw boom;
+        },
+      },
+    }));
+    const { WowWindowSource: Source } = await import("./capture");
+    const onError = vi.fn();
+    expect(await new Source({ onError }).grab()).toBeNull();
+    expect(onError).toHaveBeenCalledExactlyOnceWith(boom);
+    vi.doUnmock("node-screenshots");
+  });
+
+  it("does not need an onError", async () => {
+    vi.resetModules();
+    vi.doMock("node-screenshots", () => ({
+      Window: {
+        all: () => {
+          throw new Error("x");
+        },
+      },
+    }));
+    const { WowWindowSource: Source } = await import("./capture");
+    expect(await new Source().grab()).toBeNull();
+    vi.doUnmock("node-screenshots");
+  });
+
+  it("does not report anything when WoW is simply not running", async () => {
+    vi.resetModules();
+    vi.doMock("node-screenshots", () => ({ Window: { all: () => [] } }));
+    const { WowWindowSource: Source } = await import("./capture");
+    const onError = vi.fn();
+    expect(await new Source({ onError }).grab()).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+    vi.doUnmock("node-screenshots");
   });
 });
