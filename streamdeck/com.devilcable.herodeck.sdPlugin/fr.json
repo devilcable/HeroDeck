@@ -2,5 +2,8 @@
 	"com.devilcable.herodeck.durability": {
 		"Name": "Durabilité",
 		"Tooltip": "Durabilité de la pièce la plus abîmée"
+	},
+	"Localization": {
+		"Show percentage": "Afficher le pourcentage"
 	}
 }
