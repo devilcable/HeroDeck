@@ -148,6 +148,41 @@ describe("ChannelReader", () => {
     expect(grab).toHaveBeenCalledTimes(2); // polling resumed
   });
 
+  it("counts ticks skipped behind a grab that never returns as failures", async () => {
+    let release: (img: RawImage | null) => void = () => {};
+    const grab = vi.fn(() => new Promise<RawImage | null>((resolve) => (release = resolve)));
+    const reader = new ChannelReader({ grab });
+    const listener = vi.fn();
+    reader.subscribe(listener);
+    expect(listener).toHaveBeenCalledTimes(1); // the initial nodata
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2); // skipped ticks 1 and 2
+    expect(listener).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(POLL_MS); // skipped tick 3: nodata is reported
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenLastCalledWith(null);
+    expect(grab).toHaveBeenCalledTimes(1); // still only one grab in flight
+
+    mockedReadStrip.mockReturnValueOnce(strip(9));
+    release(IMG);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(listener).toHaveBeenLastCalledWith({ fields: [9] }); // a late good frame is shown again
+  });
+
+  it("a good read after skipped ticks restarts the failure streak", async () => {
+    let release: (img: RawImage | null) => void = () => {};
+    const grab = vi.fn(() => new Promise<RawImage | null>((resolve) => (release = resolve)));
+    const reader = new ChannelReader({ grab });
+    const seen: ChannelFrame[] = [];
+    reader.subscribe((f) => seen.push(f));
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2); // 2 skipped ticks
+    mockedReadStrip.mockReturnValueOnce(strip(5));
+    release(IMG);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.at(-1)).toEqual({ fields: [5] });
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3); // a new grab starts, then 2 skipped ticks: not 3 in a row in total
+    expect(seen.at(-1)).toEqual({ fields: [5] });
+  });
+
   it("starts from nodata again after every subscriber left", async () => {
     const reader = new ChannelReader(scripted([strip(42)]).source);
     const off = reader.subscribe(() => {});

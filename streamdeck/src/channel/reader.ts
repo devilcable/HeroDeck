@@ -45,9 +45,15 @@ export class ChannelReader {
     };
   }
 
-  /** One read. Skipped while a previous read is still running. Never throws. */
+  /**
+   * One read. While a previous read is still running no second one starts, and the skipped tick
+   * counts as a failure: a grab that never returns must not leave a stale value on the keys. Never throws.
+   */
   async tick(): Promise<void> {
-    if (this.busy) return;
+    if (this.busy) {
+      if (++this.failures >= FAILS_BEFORE_NODATA) this.emit(null);
+      return;
+    }
     this.busy = true;
     const epoch = this.epoch;
     let fields: (number | null)[] | null = null;
