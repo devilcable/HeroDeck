@@ -2,7 +2,7 @@
 
 Issue: [devilcable/HeroDeck#1](https://github.com/devilcable/HeroDeck/issues/1)
 Date: 2026-11-18
-Status: draft, waiting for user approval. Once approved, every decision below is final for this feature.
+Status: approved by the user on 2026-11-18. Every decision below is final for this feature.
 
 ## Intent
 
