@@ -8,7 +8,8 @@
 		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.devilcable.herodeck\""
 	},
 	"dependencies": {
-		"@elgato/streamdeck": "3.0.4"
+		"@elgato/streamdeck": "3.0.4",
+		"node-screenshots": "0.2.8"
 	},
 	"devDependencies": {
 		"@elgato/cli": "1.10.4",
