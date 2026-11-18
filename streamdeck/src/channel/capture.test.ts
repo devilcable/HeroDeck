@@ -1,11 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  captureOrder,
   clampCrop,
   CROP_H,
   CROP_W,
   monitorCropRect,
   pickWowWindow,
   STRIP_PX,
+  warcraftWindows,
   WOW_TITLE,
 } from "./capture";
 
@@ -150,5 +152,181 @@ describe("WowWindowSource error reporting", () => {
     expect(await new Source({ onError }).grab()).toBeNull();
     expect(onError).not.toHaveBeenCalled();
     vi.doUnmock("node-screenshots");
+  });
+});
+
+describe("warcraftWindows", () => {
+  const w = (title: string, appName = "Wow.exe", minimized = false) => ({ title, appName, minimized });
+
+  it("keeps windows whose title contains warcraft, in any case, with their app name", () => {
+    const all = [w("Notepad", "notepad.exe"), w("WORLD OF WARCRAFT", "WowB.exe"), w("Warcraft Logs - Chrome", "chrome.exe")];
+    expect(warcraftWindows(all)).toEqual([
+      { title: "WORLD OF WARCRAFT", appName: "WowB.exe", minimized: false },
+      { title: "Warcraft Logs - Chrome", appName: "chrome.exe", minimized: false },
+    ]);
+  });
+
+  it("returns an empty list when nothing matches", () => {
+    expect(warcraftWindows([w("Notepad"), w("")])).toEqual([]);
+    expect(warcraftWindows([])).toEqual([]);
+  });
+});
+
+describe("captureOrder", () => {
+  it("tries the window first until the monitor is the one that worked", () => {
+    expect(captureOrder(null)).toEqual(["window", "monitor"]);
+    expect(captureOrder("window")).toEqual(["window", "monitor"]);
+    expect(captureOrder("monitor")).toEqual(["monitor", "window"]);
+  });
+});
+
+/** A fake node-screenshots Image: crop() returns an image of the crop size; toRaw is opaque black. */
+function fakeImage(width: number, height: number, label: string) {
+  return {
+    width,
+    height,
+    crop: async (_x: number, _y: number, w: number, h: number) => fakeImage(w, h, label),
+    toRaw: async () => Buffer.alloc(width * height * 4),
+    toPng: async () => Buffer.from(`png:${label}`),
+  };
+}
+
+/** Loads a WowWindowSource against a fake WoW window; `decodes` says per path whether its strip decodes. */
+async function sourceWithFakes(
+  decodes: { window: boolean; monitor: boolean },
+  options: Record<string, unknown> = {},
+  windows?: unknown[],
+) {
+  const log: string[] = [];
+  const monitor = {
+    x: () => 0,
+    y: () => 0,
+    width: () => 1920,
+    height: () => 1080,
+    scaleFactor: () => 1,
+    captureImage: async () => {
+      log.push("monitor");
+      return fakeImage(1920, 1080, "monitor");
+    },
+  };
+  const wow = {
+    title: () => "World of Warcraft",
+    appName: () => "Wow.exe",
+    isMinimized: () => false,
+    isFocused: () => true,
+    x: () => 10,
+    y: () => 20,
+    width: () => 1900,
+    height: () => 1000,
+    currentMonitor: () => monitor,
+    captureImage: async () => {
+      log.push("window");
+      return fakeImage(1900, 1000, "window");
+    },
+  };
+  vi.resetModules();
+  vi.doMock("node-screenshots", () => ({ Window: { all: () => windows ?? [wow] } }));
+  // The strip decodes when the most recent capture was of a path that is allowed to decode.
+  vi.doMock("./strip", () => ({
+    readStrip: () => (decodes[log[log.length - 1] as "window" | "monitor"] ? { version: 1, fields: [50] } : null),
+  }));
+  const { WowWindowSource: Source } = await import("./capture");
+  return { source: new Source(options), log };
+}
+
+describe("WowWindowSource capture path", () => {
+  afterEach(() => {
+    vi.doUnmock("node-screenshots");
+    vi.doUnmock("./strip");
+  });
+
+  it("captures only the window while the window path decodes", async () => {
+    const { source, log } = await sourceWithFakes({ window: true, monitor: true });
+    await source.grab();
+    await source.grab();
+    expect(log).toEqual(["window", "window"]);
+  });
+
+  it("falls back to the monitor, then tries the monitor first on the next grab", async () => {
+    const { source, log } = await sourceWithFakes({ window: false, monitor: true });
+    expect(await source.grab()).not.toBeNull();
+    expect(log).toEqual(["window", "monitor"]);
+    log.length = 0;
+    await source.grab();
+    await source.grab();
+    expect(log).toEqual(["monitor", "monitor"]); // one capture per tick, not two
+  });
+
+  it("goes back to the window when the remembered monitor path stops decoding", async () => {
+    const decodes = { window: true, monitor: false };
+    const { source, log } = await sourceWithFakes(decodes);
+    await source.grab(); // window decodes
+    decodes.window = false;
+    decodes.monitor = true;
+    await source.grab(); // window fails, monitor works: now preferred
+    log.length = 0;
+    decodes.window = true;
+    decodes.monitor = false;
+    await source.grab(); // monitor fails, window works again
+    expect(log).toEqual(["monitor", "window"]);
+  });
+});
+
+describe("WowWindowSource diagnostics", () => {
+  afterEach(() => {
+    vi.doUnmock("node-screenshots");
+    vi.doUnmock("./strip");
+  });
+
+  it("lists the warcraft-like windows when there is no exact match", async () => {
+    const launcher = { title: () => "World of Warcraft Launcher", appName: () => "Battle.net.exe", isMinimized: () => false, isFocused: () => false };
+    const unrelated = { title: () => "Notepad", appName: () => "notepad.exe", isMinimized: () => false, isFocused: () => false };
+    const onDiagnostics = vi.fn();
+    const { source } = await sourceWithFakes({ window: true, monitor: true }, { onDiagnostics }, [launcher, unrelated]);
+    expect(await source.grab()).toBeNull();
+    expect(onDiagnostics).toHaveBeenCalledExactlyOnceWith({
+      stage: "no-window",
+      warcraftWindows: [{ title: "World of Warcraft Launcher", appName: "Battle.net.exe", minimized: false }],
+    });
+  });
+
+  it("reports the path that produced the image, once per grab, with a png of each attempt", async () => {
+    const onDiagnostics = vi.fn();
+    const { source } = await sourceWithFakes({ window: false, monitor: true }, { onDiagnostics });
+    await source.grab();
+    expect(onDiagnostics).toHaveBeenCalledTimes(1);
+    const d = onDiagnostics.mock.calls[0][0];
+    expect(d.stage).toBe("monitor");
+    expect(d.decoded).toBe(true);
+    expect(d.attempts.map((a: { path: string }) => a.path)).toEqual(["window", "monitor"]);
+    expect((await d.attempts[1].png()).toString()).toBe("png:monitor");
+  });
+
+  it("reports decoded=false when no path decodes", async () => {
+    const onDiagnostics = vi.fn();
+    const { source } = await sourceWithFakes({ window: false, monitor: false }, { onDiagnostics });
+    await source.grab();
+    expect(onDiagnostics.mock.calls[0][0]).toMatchObject({ stage: "monitor", decoded: false });
+  });
+
+  it("reports geometry on the window path too", async () => {
+    const onGeometry = vi.fn();
+    const { source } = await sourceWithFakes({ window: true, monitor: true }, { onGeometry });
+    await source.grab();
+    expect(onGeometry).toHaveBeenCalledExactlyOnceWith({
+      path: "window",
+      window: { x: 10, y: 20, width: 1900, height: 1000 },
+      monitor: { x: 0, y: 0, width: 1920, height: 1080 },
+      image: { width: 1900, height: 1000 },
+      scaleFactor: 1,
+    });
+  });
+
+  it("a throwing diagnostics hook does not break the read", async () => {
+    const onDiagnostics = vi.fn(() => {
+      throw new Error("hook");
+    });
+    const { source } = await sourceWithFakes({ window: true, monitor: true }, { onDiagnostics });
+    expect(await source.grab()).not.toBeNull();
   });
 });

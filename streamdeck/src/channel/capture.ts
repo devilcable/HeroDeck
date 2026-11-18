@@ -17,13 +17,49 @@ export function pickWowWindow<T extends WindowInfo>(windows: T[]): T | null {
   return candidates.find((w) => w.focused) ?? candidates[0] ?? null;
 }
 
-/** The window and monitor geometry used by the monitor fallback, for diagnostics. */
+/** Which capture produced an image: the game window itself, or its monitor cropped at the window. */
+export type CapturePath = "window" | "monitor";
+
+/** The path to try first: the one that last produced a decoded strip (window to start with). */
+export function captureOrder(lastGood: CapturePath | null): CapturePath[] {
+  return lastGood === "monitor" ? ["monitor", "window"] : ["window", "monitor"];
+}
+
+export interface WindowTitleInfo {
+  title: string;
+  appName: string;
+  minimized: boolean;
+}
+
+/** Windows whose title contains "warcraft" (any case): what to look at when the exact title does not match. */
+export function warcraftWindows(windows: WindowTitleInfo[]): WindowTitleInfo[] {
+  return windows
+    .filter((w) => w.title.toLowerCase().includes("warcraft"))
+    .map((w) => ({ title: w.title, appName: w.appName, minimized: w.minimized }));
+}
+
+/** The window and monitor geometry, and the size of the full capture of `path`, for diagnostics. */
 export interface CaptureGeometry {
+  path: CapturePath;
   window: Rect;
   monitor: Rect;
-  monitorImage: { width: number; height: number };
+  image: { width: number; height: number };
   scaleFactor: number;
 }
+
+/** One capture of a grab: the cropped pixels, and a lazy PNG of the same crop (to save as a fixture). */
+export interface CaptureAttempt {
+  path: CapturePath;
+  image: RawImage;
+  png: () => Promise<Buffer>;
+}
+
+/** Reported once per grab to the optional `onDiagnostics` hook. `stage` is the path of the image returned. */
+export type CaptureDiagnostics =
+  | { stage: "no-window"; warcraftWindows: WindowTitleInfo[] }
+  | { stage: CapturePath; decoded: boolean; attempts: CaptureAttempt[] }
+  | { stage: "no-image" }
+  | { stage: "error"; error: unknown };
 
 export interface FrameSource {
   /** A capture of the game's top-left corner (RGBA), or null when there is nothing to read. */
@@ -72,29 +108,54 @@ export function monitorCropRect(
   return clampCrop(Math.max(0, x), Math.max(0, y), CROP_W, CROP_H, image.width, image.height);
 }
 
-async function toRawImage(img: Image, rect: Rect | null): Promise<RawImage | null> {
+async function toAttempt(path: CapturePath, img: Image, rect: Rect | null): Promise<CaptureAttempt | null> {
   if (!rect) return null;
   const cropped = await img.crop(rect.x, rect.y, rect.width, rect.height);
   const buf = await cropped.toRaw();
-  return { width: cropped.width, height: cropped.height, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) };
+  return {
+    path,
+    image: { width: cropped.width, height: cropped.height, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) },
+    png: () => cropped.toPng(),
+  };
+}
+
+/** Runs a diagnostics callback; a failing one must not break the read. */
+function safely(fn: (() => void) | undefined): void {
+  try {
+    fn?.();
+  } catch {
+    // diagnostics must not break the read
+  }
 }
 
 /**
  * Captures the top-left corner of the World of Warcraft window with node-screenshots. If the strip
  * is not readable in the window capture (some games capture black), it captures the window's
- * monitor instead and crops at the window's position.
+ * monitor instead and crops at the window's position. The path that last decoded a strip is tried
+ * first on the next grab, so a game that never shows in a window capture costs one capture per
+ * read, not two.
  */
 export class WowWindowSource implements FrameSource {
   private readonly onError?: (err: unknown) => void;
   private readonly onGeometry?: (geometry: CaptureGeometry) => void;
+  private readonly onDiagnostics?: (diagnostics: CaptureDiagnostics) => void;
+  private lastGood: CapturePath | null = null;
 
   /**
    * `onError` receives every error that `grab` swallows before it returns null. `onGeometry`
-   * receives the window and monitor geometry whenever the monitor fallback is used (diagnostics).
+   * receives the window and monitor geometry for every capture; `onDiagnostics` is called once
+   * per grab with what happened (window not found, path used, whether a strip decoded).
    */
-  constructor(options: { onError?: (err: unknown) => void; onGeometry?: (geometry: CaptureGeometry) => void } = {}) {
+  constructor(
+    options: {
+      onError?: (err: unknown) => void;
+      onGeometry?: (geometry: CaptureGeometry) => void;
+      onDiagnostics?: (diagnostics: CaptureDiagnostics) => void;
+    } = {},
+  ) {
     this.onError = options.onError;
     this.onGeometry = options.onGeometry;
+    this.onDiagnostics = options.onDiagnostics;
   }
 
   async grab(): Promise<RawImage | null> {
@@ -102,40 +163,58 @@ export class WowWindowSource implements FrameSource {
       const { Window } = await import("node-screenshots");
       const all = Window.all().map((w) => ({
         title: w.title(),
+        appName: w.appName(),
         minimized: w.isMinimized(),
         focused: w.isFocused(),
         win: w,
       }));
       const picked = pickWowWindow(all);
-      if (!picked) return null;
+      if (!picked) {
+        safely(() => this.onDiagnostics?.({ stage: "no-window", warcraftWindows: warcraftWindows(all) }));
+        return null;
+      }
       const win: Window = picked.win;
-
-      const full = await win.captureImage();
-      const fromWindow = await toRawImage(full, clampCrop(0, 0, CROP_W, CROP_H, full.width, full.height));
-      if (fromWindow && readStrip(fromWindow)) return fromWindow;
-
-      const monitor = win.currentMonitor();
-      const monitorImage = await monitor.captureImage();
       const windowRect = { x: win.x(), y: win.y(), width: win.width(), height: win.height() };
+      const monitor = win.currentMonitor();
       const monitorRect = { x: monitor.x(), y: monitor.y(), width: monitor.width(), height: monitor.height() };
-      try {
-        this.onGeometry?.({
-          window: windowRect,
-          monitor: monitorRect,
-          monitorImage: { width: monitorImage.width, height: monitorImage.height },
-          scaleFactor: monitor.scaleFactor(),
-        });
-      } catch {
-        // diagnostics must not break the read
+
+      const attempts: CaptureAttempt[] = [];
+      let decoded = false;
+      for (const path of captureOrder(this.lastGood)) {
+        const full = path === "window" ? await win.captureImage() : await monitor.captureImage();
+        safely(() =>
+          this.onGeometry?.({
+            path,
+            window: windowRect,
+            monitor: monitorRect,
+            image: { width: full.width, height: full.height },
+            scaleFactor: monitor.scaleFactor(),
+          }),
+        );
+        const rect =
+          path === "window"
+            ? clampCrop(0, 0, CROP_W, CROP_H, full.width, full.height)
+            : monitorCropRect(windowRect, monitorRect, full);
+        const attempt = await toAttempt(path, full, rect);
+        if (!attempt) continue;
+        attempts.push(attempt);
+        if (readStrip(attempt.image)) {
+          this.lastGood = path;
+          decoded = true;
+          break;
+        }
       }
-      const rect = monitorCropRect(windowRect, monitorRect, monitorImage);
-      return await toRawImage(monitorImage, rect);
+      const last = attempts[attempts.length - 1];
+      if (!last) {
+        safely(() => this.onDiagnostics?.({ stage: "no-image" }));
+        return null;
+      }
+      // When nothing decoded, the last capture is still returned: the reader counts it as a failure.
+      safely(() => this.onDiagnostics?.({ stage: last.path, decoded, attempts }));
+      return last.image;
     } catch (err) {
-      try {
-        this.onError?.(err);
-      } catch {
-        // a failing error handler must not break the read
-      }
+      safely(() => this.onError?.(err));
+      safely(() => this.onDiagnostics?.({ stage: "error", error: err }));
       return null;
     }
   }
