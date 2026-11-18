@@ -22,33 +22,48 @@ function looksLikeStrip(img: RawImage, x: number, y: number): boolean {
   return marker.r >= BRIGHT_MIN && marker.b >= BRIGHT_MIN && marker.g <= DARK_MAX;
 }
 
+/** Rounded centroid of all matches in the 5x3 window starting at the first match (x, y). */
+function refine(img: RawImage, x: number, y: number, maxX: number, maxY: number): { x: number; y: number } {
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (let wy = y; wy < y + CELL_PX && wy < maxY; wy++) {
+    for (let wx = Math.max(0, x - 2); wx <= x + 2 && wx < maxX; wx++) {
+      if (looksLikeStrip(img, wx, wy)) {
+        sx += wx;
+        sy += wy;
+        n++;
+      }
+    }
+  }
+  return { x: Math.round(sx / n), y: Math.round(sy / n) };
+}
+
 /**
- * Coarse finder: the center pixel of cell 0, or null. Only decodeStrip validates the strip.
- * The first row-major match can be a border pixel of the cell, so the result is the rounded
- * centroid of all matches in the 5x3 window starting at the first match (the whole cell lies in it).
+ * Coarse finder: every candidate center of cell 0, in row-major order. Only decodeStrip validates
+ * a candidate, so callers try them in order and keep the first that decodes (a false candidate
+ * above or left of the real strip must not hide it).
+ * The first match of a cell can be a border pixel, so each candidate is refined to the rounded
+ * centroid of the matches around it; later matches within 2 px of a returned candidate belong to
+ * the same cell and are skipped.
  */
-export function findStrip(img: RawImage): { x: number; y: number } | null {
+export function findStripCandidates(img: RawImage): { x: number; y: number }[] {
   const maxX = Math.min(SEARCH_W, img.width - 2 * CELL_PX);
   const maxY = Math.min(SEARCH_H, img.height);
+  const found: { x: number; y: number }[] = [];
   for (let y = 0; y < maxY; y++) {
     for (let x = 0; x < maxX; x++) {
       if (!looksLikeStrip(img, x, y)) continue;
-      let sx = 0;
-      let sy = 0;
-      let n = 0;
-      for (let wy = y; wy < y + CELL_PX && wy < maxY; wy++) {
-        for (let wx = Math.max(0, x - 2); wx <= x + 2 && wx < maxX; wx++) {
-          if (looksLikeStrip(img, wx, wy)) {
-            sx += wx;
-            sy += wy;
-            n++;
-          }
-        }
-      }
-      return { x: Math.round(sx / n), y: Math.round(sy / n) };
+      if (found.some((c) => Math.abs(c.x - x) <= 2 && Math.abs(c.y - y) <= 2)) continue;
+      found.push(refine(img, x, y, maxX, maxY));
     }
   }
-  return null;
+  return found;
+}
+
+/** The first candidate from findStripCandidates, or null. */
+export function findStrip(img: RawImage): { x: number; y: number } | null {
+  return findStripCandidates(img)[0] ?? null;
 }
 
 /** Read the center pixel of `count` cells starting at `origin`; stops at the image edge. */

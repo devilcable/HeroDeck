@@ -3,8 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { decodeStrip } from "./decode";
-import { findStrip, readCells, SEARCH_H, SEARCH_W } from "./locate";
-import { CELL_PX, type RawImage } from "./protocol";
+import { findStrip, findStripCandidates, readCells, SEARCH_H, SEARCH_W } from "./locate";
+import { CELL_PX, HEADER_CELLS, MAX_FIELDS, type RawImage } from "./protocol";
 
 type Triple = [number, number, number];
 interface Vectors {
@@ -59,8 +59,8 @@ function solidImage(width: number, height: number, v: number): RawImage {
  * Paint the strip with its top-left pixel at (x, y); cells past the right edge are
  * clipped. With `blur`, the 8 border pixels of each cell are blended 50 % with whatever was behind them; the center pixel stays exact.
  */
-function paintStrip(img: RawImage, x: number, y: number, blur = false): void {
-  allCells.forEach((cell, i) => {
+function paintStrip(img: RawImage, x: number, y: number, blur = false, cells: Triple[] = allCells): void {
+  cells.forEach((cell, i) => {
     for (let dy = 0; dy < CELL_PX; dy++) {
       for (let dx = 0; dx < CELL_PX; dx++) {
         if (x + i * CELL_PX + dx >= img.width) continue;
@@ -97,9 +97,46 @@ describe("strip locator", () => {
     expect(strip?.fields).toEqual(expectedValues);
   });
 
-  it("returns null on an image without the strip", () => {
-    expect(findStrip(noiseImage(200, 100, 4))).toBeNull();
+  it("returns no candidate on an image without the strip", () => {
     expect(findStrip(solidImage(200, 100, 255))).toBeNull();
+    expect(findStripCandidates(solidImage(200, 100, 255))).toEqual([]);
+    expect(findStrip(noiseImage(200, 100, 4, BUSY))).toBeNull();
+  });
+
+  it("rejects every candidate found in full-range noise", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const img = noiseImage(200, 100, seed);
+      for (const c of findStripCandidates(img)) {
+        expect(decodeStrip(readCells(img, c, HEADER_CELLS + 2 * MAX_FIELDS))).toBeNull();
+      }
+    }
+  });
+
+  it("returns exactly one candidate for a single valid strip", () => {
+    for (const blur of [false, true]) {
+      const img = noiseImage(200, 100, 8, BUSY);
+      paintStrip(img, 8, 31, blur);
+      expect(findStripCandidates(img)).toEqual([{ x: 9, y: 32 }]);
+    }
+  });
+
+  it("finds the real strip behind a decoy above and left of it", () => {
+    const img = noiseImage(200, 100, 9, BUSY);
+    // white, black, magenta at 3 px spacing, but the version cell is white: not a valid strip
+    const decoy: Triple[] = [...vectors.header.slice(0, 3), [255, 255, 255]];
+    paintStrip(img, 2, 5, false, decoy);
+    paintStrip(img, 8, 31);
+    const candidates = findStripCandidates(img);
+    expect(candidates).toEqual([
+      { x: 3, y: 6 },
+      { x: 9, y: 32 },
+    ]);
+    expect(findStrip(img)).toEqual({ x: 3, y: 6 });
+    const strips = candidates
+      .map((c) => decodeStrip(readCells(img, c, HEADER_CELLS + 2 * MAX_FIELDS)))
+      .filter((s) => s !== null);
+    expect(strips).toHaveLength(1);
+    expect(strips[0].fields).toEqual(expectedValues.slice(0, MAX_FIELDS)); // MAX_FIELDS cells are read
   });
 
   it("does not look outside the search region", () => {
