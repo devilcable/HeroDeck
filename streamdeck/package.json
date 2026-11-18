@@ -4,6 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "rollup -c",
+		"probe": "tsx scripts/probe.ts",
 		"postbuild": "npm install --omit=dev --prefix com.devilcable.herodeck.sdPlugin",
 		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.devilcable.herodeck\""
 	},
@@ -21,6 +22,7 @@
 		"@types/node": "24.1.0",
 		"rollup": "4.68.6",
 		"tslib": "2.9.1",
+		"tsx": "4.23.15",
 		"typescript": "5.9.3"
 	}
 }

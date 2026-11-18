@@ -17,6 +17,10 @@ const reader = new ChannelReader(
       lastError = message;
       logger.warn("capture failed:", message);
     },
+    // A grab that completed without an error ends the streak: the same error later is logged again.
+    onDiagnostics: (d) => {
+      if (d.stage !== "error") lastError = "";
+    },
   }),
 );
 
