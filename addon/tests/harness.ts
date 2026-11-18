@@ -15,12 +15,92 @@ export const ADDON_FILES: string[] = readFileSync(join(ADDON_DIR, "HeroDeck.toc"
   .map((line) => line.trim())
   .filter((line) => line !== "" && !line.startsWith("#"));
 
-/** Lua-side default mocks: a frame whose methods (and any other key) are no-ops. */
+/**
+ * Lua-side default mocks: recording frames and textures. Any method that is not
+ * implemented below is a no-op, so code that only calls such methods keeps working.
+ *
+ * Recorded per frame (in the global list __frames, creation order): parent, strata,
+ * scale, ignoreParentScale, events (set of registered names), scripts (by name),
+ * points, textures (creation order).
+ * Recorded per texture: color = {r,g,b,a} (rgb stored x255 and rounded), width,
+ * height, points = { {point, relativeTo, relativePoint, x, y}, ... }.
+ */
 const LUA_DEFAULTS = `
   local noop = function() end
-  local frameMeta = { __index = function() return noop end }
-  CreateFrame = function() return setmetatable({}, frameMeta) end
-  WorldFrame = setmetatable({}, frameMeta)
+  local function newObject(methods)
+    local obj = {}
+    return setmetatable(obj, {
+      __index = function(_, key)
+        return methods[key] or noop
+      end,
+    })
+  end
+
+  local function recordPoint(self, point, relativeTo, relativePoint, x, y)
+    -- Supports SetPoint(point), SetPoint(point, x, y) and the full 5-argument form.
+    if type(relativeTo) == "number" then
+      x, y, relativeTo, relativePoint = relativeTo, relativePoint, nil, nil
+    end
+    self.points[#self.points + 1] = {
+      point = point,
+      relativeTo = relativeTo,
+      relativePoint = relativePoint or point,
+      x = x or 0,
+      y = y or 0,
+    }
+  end
+
+  local textureMethods = {
+    SetColorTexture = function(self, r, g, b, a)
+      self.color = {
+        r = math.floor(r * 255 + 0.5),
+        g = math.floor(g * 255 + 0.5),
+        b = math.floor(b * 255 + 0.5),
+        a = a,
+      }
+    end,
+    SetSize = function(self, w, h) self.width = w; self.height = h end,
+    SetWidth = function(self, w) self.width = w end,
+    SetHeight = function(self, h) self.height = h end,
+    ClearAllPoints = function(self) self.points = {} end,
+    SetPoint = recordPoint,
+  }
+
+  local frameMethods = {
+    CreateTexture = function(self)
+      local texture = newObject(textureMethods)
+      texture.points = {}
+      self.textures[#self.textures + 1] = texture
+      return texture
+    end,
+    SetParent = function(self, parent) self.parent = parent end,
+    SetFrameStrata = function(self, strata) self.strata = strata end,
+    SetScale = function(self, scale) self.scale = scale end,
+    SetIgnoreParentScale = function(self, ignore) self.ignoreParentScale = ignore end,
+    RegisterEvent = function(self, event) self.events[event] = true end,
+    SetScript = function(self, name, fn) self.scripts[name] = fn end,
+    SetSize = function(self, w, h) self.width = w; self.height = h end,
+    ClearAllPoints = function(self) self.points = {} end,
+    SetPoint = recordPoint,
+  }
+
+  local function newFrame(parent)
+    local frame = newObject(frameMethods)
+    frame.parent = parent
+    frame.events = {}
+    frame.scripts = {}
+    frame.points = {}
+    frame.textures = {}
+    return frame
+  end
+
+  __frames = {}
+  CreateFrame = function(_, _, parent)
+    local frame = newFrame(parent)
+    __frames[#__frames + 1] = frame
+    return frame
+  end
+  WorldFrame = newFrame(nil)
 `;
 
 /** JS-side default mocks. Tests override individual entries through createLua(mocks). */
