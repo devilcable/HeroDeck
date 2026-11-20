@@ -47,10 +47,10 @@ describe("pickWowWindow", () => {
 });
 
 describe("crop geometry", () => {
-  it("covers the search region plus the strip", () => {
-    expect(STRIP_PX).toBe(42);
-    expect(CROP_W).toBe(128 + 42);
-    expect(CROP_H).toBe(64 + 3);
+  it("covers the search region plus the grid", () => {
+    expect(STRIP_PX).toBe(24);
+    expect(CROP_W).toBe(128 + 24);
+    expect(CROP_H).toBe(64 + 14);
   });
 
   it("keeps the full crop size on a large image", () => {

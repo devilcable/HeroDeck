@@ -11,7 +11,7 @@ export const LEVELS = [0, 85, 170, 255];
 export const TOLERANCE = 30;
 export const PROTOCOL_VERSION = 2;
 /** Cell size in physical pixels. */
-export const CELL_PX = 3;
+export const CELL_PX = 4;
 /** White, black, marker, version. */
 export const HEADER_CELLS = 4;
 export const MAX_FIELDS = 5;

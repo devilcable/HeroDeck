@@ -1,6 +1,5 @@
 import type { Image, Window } from "node-screenshots";
-import { SEARCH_H, SEARCH_W } from "./locate";
-import { CELL_PX, HEADER_CELLS, MAX_FIELDS, type RawImage } from "./protocol";
+import { CELL_PITCH, CELL_PX, GRID_COLS, GRID_ROWS, type RawImage } from "./protocol";
 import { readStrip } from "./strip";
 
 export interface WindowInfo {
@@ -73,11 +72,15 @@ export interface Rect {
   height: number;
 }
 
-/** Width in physical pixels of the longest strip (header + fields). */
-export const STRIP_PX = (HEADER_CELLS + 2 * MAX_FIELDS) * CELL_PX;
-/** The region that can hold the strip: the search area plus one strip to its right and one cell below. */
+/** Top-left area searched for the grid: covers a title bar and window borders. */
+const SEARCH_W = 128;
+const SEARCH_H = 64;
+/** Width and height in physical pixels of the 5x3 grid. */
+export const STRIP_PX = (GRID_COLS - 1) * CELL_PITCH + CELL_PX;
+const GRID_H = (GRID_ROWS - 1) * CELL_PITCH + CELL_PX;
+/** The region that can hold the grid: the search area plus one grid to its right and below. */
 export const CROP_W = SEARCH_W + STRIP_PX;
-export const CROP_H = SEARCH_H + CELL_PX;
+export const CROP_H = SEARCH_H + GRID_H;
 
 /** Intersect a rectangle with an image of the given size. Null when nothing is left. */
 export function clampCrop(x: number, y: number, width: number, height: number, imgW: number, imgH: number): Rect | null {
