@@ -48,8 +48,8 @@ describe("pickWowWindow", () => {
 
 describe("crop geometry", () => {
   it("covers the search region plus the strip", () => {
-    expect(STRIP_PX).toBe(36);
-    expect(CROP_W).toBe(128 + 36);
+    expect(STRIP_PX).toBe(42);
+    expect(CROP_W).toBe(128 + 42);
     expect(CROP_H).toBe(64 + 3);
   });
 
@@ -228,7 +228,7 @@ async function sourceWithFakes(
   vi.doMock("node-screenshots", () => ({ Window: { all: () => windows ?? [wow] } }));
   // The strip decodes when the most recent capture was of a path that is allowed to decode.
   vi.doMock("./strip", () => ({
-    readStrip: () => (decodes[log[log.length - 1] as "window" | "monitor"] ? { version: 1, fields: [50] } : null),
+    readStrip: () => (decodes[log[log.length - 1] as "window" | "monitor"] ? { version: 2, fields: [50] } : null),
   }));
   const { WowWindowSource: Source } = await import("./capture");
   return { source: new Source(options), log };

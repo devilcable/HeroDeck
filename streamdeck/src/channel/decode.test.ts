@@ -13,7 +13,7 @@ interface Vectors {
 
 const vectors: Vectors = JSON.parse(
   readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v1.json"),
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v2.json"),
     "utf8",
   ),
 );
@@ -36,9 +36,15 @@ describe("channel strip decoder", () => {
     expect(strip?.fields).toEqual(expectedValues);
   });
 
-  it("decodes the header: version 1", () => {
+  it("decodes the header: version 2", () => {
     const strip = decodeStrip(buildStrip());
-    expect(strip?.version).toBe(1);
+    expect(strip?.version).toBe(2);
+  });
+
+  it("rejects version 1", () => {
+    const v1 = buildStrip();
+    v1[3] = rgb([0, 0, 85]);
+    expect(decodeStrip(v1)).toBeNull();
   });
 
   it("survives a linear shift", () => {
@@ -82,7 +88,7 @@ describe("channel strip decoder", () => {
     expect(decodeStrip(badMarker)).toBeNull();
 
     const badVersion = buildStrip();
-    badVersion[3] = rgb([0, 0, 170]);
+    badVersion[3] = rgb([0, 0, 255]);
     expect(decodeStrip(badVersion)).toBeNull();
   });
 

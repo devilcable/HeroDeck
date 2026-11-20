@@ -14,7 +14,7 @@ interface Vectors {
 
 const vectors: Vectors = JSON.parse(
   readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v1.json"),
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v2.json"),
     "utf8",
   ),
 );

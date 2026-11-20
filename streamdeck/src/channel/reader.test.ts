@@ -10,7 +10,7 @@ vi.mock("./strip", () => ({ readStrip: vi.fn() }));
 const mockedReadStrip = vi.mocked(readStrip);
 
 const IMG: RawImage = { width: 1, height: 1, data: new Uint8Array(4) };
-const strip = (...fields: (number | null)[]): Strip => ({ version: 1, fields });
+const strip = (...fields: (number | null)[]): Strip => ({ version: 2, fields });
 
 /**
  * A source whose grab() plays the next scripted outcome: a decodable strip, "blank" (an image

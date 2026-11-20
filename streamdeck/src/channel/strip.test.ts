@@ -13,7 +13,7 @@ interface Vectors {
 
 const vectors: Vectors = JSON.parse(
   readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v1.json"),
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v2.json"),
     "utf8",
   ),
 );
@@ -45,7 +45,7 @@ describe("readStrip", () => {
     const img = greyImage(200, 100);
     paintStrip(img, 8, 31);
     const strip = readStrip(img);
-    expect(strip?.version).toBe(1);
+    expect(strip?.version).toBe(2);
     expect(strip?.fields).toEqual(expectedValues);
   });
 
