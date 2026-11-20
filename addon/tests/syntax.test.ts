@@ -10,7 +10,7 @@ describe("addon skeleton", () => {
     const lines = toc.split(/\r?\n/);
     expect(lines).toContain("## Interface: 16001");
     expect(lines).toContain("## Title: HeroDeck");
-    expect(toc).not.toContain("## SavedVariables");
+    expect(lines).toContain("## SavedVariables: HeroDeckDB");
   });
 
   it("every toc file exists and parses as Lua 5.1", () => {

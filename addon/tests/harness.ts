@@ -23,6 +23,9 @@ export const ADDON_FILES: string[] = readFileSync(join(ADDON_DIR, "HeroDeck.toc"
  * Recorded per frame (in the global list __frames, creation order): parent, strata,
  * scale, frameLevel, ignoreParentScale, events (set of registered names), scripts (by name),
  * points, textures (creation order).
+ * Globals: Minimap (140 wide, center 1000,500), __cursor / GetCursorPosition, __locale /
+ * GetLocale, GameTooltip (owner, anchor, lines, shown), SlashCmdList = {}, print captured
+ * in __printed. Frames answer GetWidth / GetHeight; textures record texturePath (SetTexture).
  * Settable per frame by tests: center = {x, y} (returned by GetCenter, nil when unset) and
  * effectiveScale (returned by GetEffectiveScale, 1 when unset); GetFrameLevel returns
  * frameLevel (0 when unset).
@@ -71,6 +74,7 @@ const LUA_DEFAULTS = `
         a = a,
       }
     end,
+    SetTexture = function(self, path) self.texturePath = path end,
     SetSize = function(self, w, h) self.width = w; self.height = h end,
     SetWidth = function(self, w) self.width = w end,
     SetHeight = function(self, h) self.height = h end,
@@ -99,6 +103,8 @@ const LUA_DEFAULTS = `
     RegisterEvent = function(self, event) self.events[event] = true end,
     SetScript = function(self, name, fn) self.scripts[name] = fn end,
     SetSize = function(self, w, h) self.width = w; self.height = h end,
+    GetWidth = function(self) return self.width or 0 end,
+    GetHeight = function(self) return self.height or 0 end,
     ClearAllPoints = function(self) self.points = {} end,
     SetPoint = recordPoint,
   }
@@ -121,6 +127,39 @@ const LUA_DEFAULTS = `
   end
   WorldFrame = newFrame(nil)
   UIParent = newFrame(nil)
+
+  -- Minimap: 140 wide, centered at (1000, 500), scale 1 (tests may change center/effectiveScale).
+  Minimap = newFrame(UIParent)
+  Minimap.width = 140
+  Minimap.height = 140
+  Minimap.center = { x = 1000, y = 500 }
+
+  -- Cursor position in screen units; tests set __cursor.x / __cursor.y.
+  __cursor = { x = 0, y = 0 }
+  GetCursorPosition = function() return __cursor.x, __cursor.y end
+
+  -- Locale; tests set __locale.
+  __locale = "enUS"
+  GetLocale = function() return __locale end
+
+  -- GameTooltip records owner, anchor, lines (AddLine text) and shown.
+  GameTooltip = newObject({
+    SetOwner = function(self, owner, anchor) self.owner = owner; self.anchor = anchor; self.lines = {} end,
+    AddLine = function(self, text) self.lines[#self.lines + 1] = text end,
+    Show = function(self) self.shown = true end,
+    Hide = function(self) self.shown = false end,
+  })
+  GameTooltip.lines = {}
+
+  SlashCmdList = {}
+
+  -- print records its output in __printed (tostring of the arguments joined by a space).
+  __printed = {}
+  print = function(...)
+    local parts = {}
+    for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
+    __printed[#__printed + 1] = table.concat(parts, " ")
+  end
 `;
 
 /** JS-side default mocks. Tests override individual entries through createLua(mocks). */

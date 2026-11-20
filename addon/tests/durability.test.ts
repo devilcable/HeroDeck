@@ -60,7 +60,7 @@ const cellColor = async (lua: LuaEngine, cellIndex: number) =>
     `local c = HeroDeckNS.Channel.cells[${cellIndex}].color; return {c.r, c.g, c.b}`,
   );
 
-/** Lua: init the channel on a placeholder host, as PLAYER_LOGIN does until the button exists. */
+/** Lua: init the channel on a bare host frame (no minimap button). */
 const INIT_CHANNEL = `
   local host = CreateFrame("Frame", nil, UIParent)
   HeroDeckNS.Channel:Init(host)
@@ -153,14 +153,61 @@ describe("Durability events", () => {
     });
   });
 
-  it("PLAYER_LOGIN draws the grid on a 31 x 31 placeholder host", async () => {
+  it("PLAYER_LOGIN creates the button and the grid on it", async () => {
     await withAddon(async (lua) => {
       await fire(lua, "PLAYER_LOGIN");
-      expect(await lua.doString("return HeroDeckNS.Channel.frame.parent == HeroDeckNS.Channel.host")).toBe(true);
-      expect(await lua.doString("return HeroDeckNS.Channel.host.parent == UIParent")).toBe(true);
-      expect(await lua.doString("return {HeroDeckNS.Channel.host.width, HeroDeckNS.Channel.host.height}")).toEqual([31, 31]);
-      expect(await lua.doString("return #HeroDeckNS.Channel.frame.textures")).toBe(16);
+      const ns = "HeroDeckNS";
+      expect(await lua.doString(`return ${ns}.MinimapButton.frame ~= nil and ${ns}.MinimapButton.frame.parent == Minimap`)).toBe(true);
+      expect(await lua.doString(`return ${ns}.Channel.host == ${ns}.MinimapButton.frame`)).toBe(true);
+      expect(await lua.doString(`return ${ns}.Channel.frame.parent == ${ns}.MinimapButton.frame`)).toBe(true);
+      expect(await lua.doString(`return #${ns}.Channel.frame.textures`)).toBe(16);
+      expect(await lua.doString(`return ${ns}.Channel.fields[0]`)).toBe(true);
     });
+  });
+
+  it("PLAYER_LOGIN runs init, grid, place, register in that order, then draws", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`
+        local ns = HeroDeckNS
+        __log = {}
+        local function spy(tbl, key, label)
+          local orig = tbl[key]
+          tbl[key] = function(...) __log[#__log + 1] = label; return orig(...) end
+        end
+        spy(ns.MinimapButton, "Init", "button init")
+        spy(ns.Channel, "Init", "channel init")
+        spy(ns.MinimapButton, "Place", "place")
+        spy(ns.Channel, "Register", "register")
+        spy(ns.Durability, "Update", "update")
+      `);
+      await fire(lua, "PLAYER_LOGIN");
+      expect(await lua.doString("return __log")).toEqual(["button init", "channel init", "place", "register", "update"]);
+    });
+  });
+
+  it("PLAYER_LOGIN places the button at the saved angle", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString("HeroDeckDB = { minimap = { angle = 0 } }");
+      await fire(lua, "PLAYER_LOGIN");
+      expect(
+        await lua.doString("local p = HeroDeckNS.MinimapButton.frame.points[1]; return { p.x, p.y }"),
+      ).toEqual([80, 0]);
+    });
+  });
+
+  it("Durability.last is set by Update", async () => {
+    const slots: Slots = { 1: [87, 100] };
+    await withAddon(
+      async (lua) => {
+        expect(await lua.doString("return HeroDeckNS.Durability.last")).toBeNull();
+        await fire(lua, "PLAYER_LOGIN");
+        expect(await lua.doString("return HeroDeckNS.Durability.last")).toBe(87);
+        slots[1] = [40, 100];
+        await fire(lua, "UPDATE_INVENTORY_DURABILITY");
+        expect(await lua.doString("return HeroDeckNS.Durability.last")).toBe(40);
+      },
+      { GetInventoryItemDurability: readSlotFor(slots) },
+    );
   });
 
   it("events before PLAYER_LOGIN do not touch the channel", async () => {

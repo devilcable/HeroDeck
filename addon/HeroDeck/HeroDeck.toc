@@ -3,8 +3,10 @@
 ## Notes: Shows your character data on an Elgato Stream Deck.
 ## Author: devilcable
 ## Version: 0.1.0
+## SavedVariables: HeroDeckDB
 
 Core/Init.lua
 Core/Codec.lua
 Core/Channel.lua
+Core/MinimapButton.lua
 Modules/Durability.lua
