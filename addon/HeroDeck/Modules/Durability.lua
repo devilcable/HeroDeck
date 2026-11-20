@@ -40,7 +40,11 @@ frame:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
 frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
-    ns.Channel:Init()
+    -- Placeholder host until the minimap button exists: a 31 x 31 frame centered on the screen.
+    local host = CreateFrame("Frame", nil, UIParent)
+    host:SetSize(31, 31)
+    host:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    ns.Channel:Init(host)
     ns.Channel:Register(Durability.FIELD)
     ready = true
   end

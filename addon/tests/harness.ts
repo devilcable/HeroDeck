@@ -23,7 +23,10 @@ export const ADDON_FILES: string[] = readFileSync(join(ADDON_DIR, "HeroDeck.toc"
  * Recorded per frame (in the global list __frames, creation order): parent, strata,
  * scale, frameLevel, ignoreParentScale, events (set of registered names), scripts (by name),
  * points, textures (creation order).
- * Recorded per texture: color = {r,g,b,a} (rgb stored x255 and rounded), width,
+ * Settable per frame by tests: center = {x, y} (returned by GetCenter, nil when unset) and
+ * effectiveScale (returned by GetEffectiveScale, 1 when unset); GetFrameLevel returns
+ * frameLevel (0 when unset).
+ * Recorded per texture: layer, color = {r,g,b,a} (rgb stored x255 and rounded), width,
  * height, points = { {point, relativeTo, relativePoint, x, y}, ... }.
  */
 const LUA_DEFAULTS = `
@@ -76,8 +79,9 @@ const LUA_DEFAULTS = `
   }
 
   local frameMethods = {
-    CreateTexture = function(self)
+    CreateTexture = function(self, _, layer)
       local texture = newObject(textureMethods)
+      texture.layer = layer
       texture.points = {}
       self.textures[#self.textures + 1] = texture
       return texture
@@ -85,6 +89,11 @@ const LUA_DEFAULTS = `
     SetParent = function(self, parent) self.parent = parent end,
     SetFrameStrata = function(self, strata) self.strata = strata end,
     SetFrameLevel = function(self, level) self.frameLevel = level end,
+    GetFrameLevel = function(self) return self.frameLevel or 0 end,
+    GetEffectiveScale = function(self) return self.effectiveScale or 1 end,
+    GetCenter = function(self)
+      if self.center then return self.center.x, self.center.y end
+    end,
     SetScale = function(self, scale) self.scale = scale end,
     SetIgnoreParentScale = function(self, ignore) self.ignoreParentScale = ignore end,
     RegisterEvent = function(self, event) self.events[event] = true end,
@@ -111,6 +120,7 @@ const LUA_DEFAULTS = `
     return frame
   end
   WorldFrame = newFrame(nil)
+  UIParent = newFrame(nil)
 `;
 
 /** JS-side default mocks. Tests override individual entries through createLua(mocks). */

@@ -57,8 +57,14 @@ const fire = (lua: LuaEngine, event: string) =>
 
 const cellColor = async (lua: LuaEngine, cellIndex: number) =>
   lua.doString(
-    `local c = HeroDeckNS.Channel.frame.textures[${cellIndex + 1}].color; return {c.r, c.g, c.b}`,
+    `local c = HeroDeckNS.Channel.cells[${cellIndex}].color; return {c.r, c.g, c.b}`,
   );
+
+/** Lua: init the channel on a placeholder host, as PLAYER_LOGIN does until the button exists. */
+const INIT_CHANNEL = `
+  local host = CreateFrame("Frame", nil, UIParent)
+  HeroDeckNS.Channel:Init(host)
+`;
 
 describe("Durability.Compute", () => {
   it("no slot with durability gives 100", async () => {
@@ -147,6 +153,16 @@ describe("Durability events", () => {
     });
   });
 
+  it("PLAYER_LOGIN draws the grid on a 31 x 31 placeholder host", async () => {
+    await withAddon(async (lua) => {
+      await fire(lua, "PLAYER_LOGIN");
+      expect(await lua.doString("return HeroDeckNS.Channel.frame.parent == HeroDeckNS.Channel.host")).toBe(true);
+      expect(await lua.doString("return HeroDeckNS.Channel.host.parent == UIParent")).toBe(true);
+      expect(await lua.doString("return {HeroDeckNS.Channel.host.width, HeroDeckNS.Channel.host.height}")).toEqual([31, 31]);
+      expect(await lua.doString("return #HeroDeckNS.Channel.frame.textures")).toBe(16);
+    });
+  });
+
   it("events before PLAYER_LOGIN do not touch the channel", async () => {
     await withAddon(async (lua) => {
       for (const event of [
@@ -162,7 +178,7 @@ describe("Durability events", () => {
 
   it("Update reads GetInventoryItemDurability at call time", async () => {
     await withAddon(async (lua) => {
-      await lua.doString("HeroDeckNS.Channel:Init(); HeroDeckNS.Channel:Register(0)");
+      await lua.doString(INIT_CHANNEL + "HeroDeckNS.Channel:Register(0)");
       lua.global.set("GetInventoryItemDurability", readSlotFor({ 3: [87, 100] }));
       await lua.doString("HeroDeckNS.Durability:Update()");
       const vec = vectors.fields.find((f) => f.value === 87)!;
