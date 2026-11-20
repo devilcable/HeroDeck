@@ -4,7 +4,7 @@ Date: 2026-11-20
 Branch: `feature/minimap-button` (cut from `feature/durability`, which is not merged into `develop` yet).
 Its PR goes into `develop` after the durability PR is merged (my call: the durability PR is opened and
 merged first, so this PR only carries the minimap work).
-Status: draft, waiting for user approval of the written document
+Status: approved by the user on 2026-11-20. Every decision below is final for this feature.
 Builds on: `docs/superpowers/specs/2026-11-18-durability-design.md` (screen pixel channel, protocol v1)
 
 ## Intent
