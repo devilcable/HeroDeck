@@ -253,6 +253,39 @@ describe("MinimapButton drag", () => {
     });
   });
 
+  // OnDragStop does not fire when the button is hidden or the mouse is released elsewhere.
+  for (const script of ["OnHide", "OnMouseUp"]) {
+    it(`${script} ends a drag that never got OnDragStop: the angle is saved and the button stays put`, async () => {
+      await withAddon(async (lua) => {
+        await lua.doString(`${MB}:Init(); ${MB}:Place(225)`);
+        await lua.doString(`
+          __cursor.x, __cursor.y = 1000, 600 -- straight above the Minimap center (1000, 500)
+          ${BTN}.scripts.OnDragStart(${BTN})
+          ${BTN}.scripts.OnUpdate(${BTN}, 0.016)
+          ${BTN}.scripts.${script}(${BTN})
+        `);
+        expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(90);
+        // the cursor moves on: the button no longer follows it
+        await lua.doString(`
+          __cursor.x, __cursor.y = 1100, 500
+          ${BTN}.scripts.OnUpdate(${BTN}, 0.016)
+        `);
+        expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(90);
+        const [x, y] = await nums(lua, `${BTN}.points[#${BTN}.points].x, ${BTN}.points[#${BTN}.points].y`);
+        expect(x).toBeCloseTo(0, 6);
+        expect(y).toBe(MINIMAP_HALF + 10);
+      });
+    });
+  }
+
+  it("OnHide and OnMouseUp without a drag do not touch the saved angle", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); ${MB}:Place(225)`);
+      await lua.doString(`${BTN}.scripts.OnHide(${BTN}); ${BTN}.scripts.OnMouseUp(${BTN}, "LeftButton")`);
+      expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(40);
+    }, "HeroDeckDB = { minimap = { angle = 40 } }");
+  });
+
   it("Layout runs on every drag step", async () => {
     await withAddon(async (lua) => {
       await lua.doString(`${MB}:Init(); HeroDeckNS.Channel:Init(${BTN})`);

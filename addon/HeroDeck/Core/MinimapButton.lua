@@ -144,8 +144,17 @@ local function onUpdate(self, elapsed)
   end
 end
 
+-- End a drag: stop following the cursor and save the angle. A no-op when no drag is running.
+local function endDrag()
+  if not dragging then
+    return
+  end
+  dragging = false
+  saveAngle()
+end
+
 local function onEnter(self)
-  -- Open away from the minimap so the tooltip does not cover the grid.
+  -- Open toward the minimap side, away from the screen edge, so the tooltip stays on screen.
   local degrees = angle % 360
   local onRightHalf = degrees < 90 or degrees > 270
   GameTooltip:SetOwner(self, onRightHalf and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
@@ -180,10 +189,11 @@ function MinimapButton:Init()
     dragging = true
     GameTooltip:Hide()
   end)
-  button:SetScript("OnDragStop", function()
-    dragging = false
-    saveAngle()
-  end)
+  button:SetScript("OnDragStop", endDrag)
+  -- OnDragStop does not fire when the button is hidden mid-drag or the mouse is released elsewhere:
+  -- end the drag here too, or the button would follow the cursor forever.
+  button:SetScript("OnHide", endDrag)
+  button:SetScript("OnMouseUp", endDrag)
   button:SetScript("OnUpdate", onUpdate)
   button:SetScript("OnEnter", onEnter)
   button:SetScript("OnLeave", function()
