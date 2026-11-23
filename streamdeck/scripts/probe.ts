@@ -2,14 +2,15 @@
  * Manual check against the running game (WoW windowed or borderless, addon loaded):
  *   npm run probe [-- --dump <dir>]
  * Every 500 ms it prints the decoded fields (or "nodata"), the capture path that produced the
- * image (window or monitor) and the grab time. Capture errors are printed as they happen, and the
+ * image (window or monitor), the region that decoded (tracked = around the last position, full =
+ * the whole game area), the grid origin in that capture (pixels) and the grab time. Capture errors are printed as they happen, and the
  * window/monitor geometry once per path. When there is nothing to decode it says why:
  *   - no window titled exactly "World of Warcraft": lists the windows with "warcraft" in the title;
  *   - strip candidates found but rejected: prints their count and the 4 raw header colors (r,g,b)
  *     of the first one. Expected: 255,255,255 | 0,0,0 | 255,0,255 | 0,0,85. A red/blue swap shows
  *     up as a version cell of 85,0,0.
- * --dump <dir> saves the cropped capture(s) of the first tick that has any as PNG files in <dir>
- * (window.png, monitor.png), to turn a real capture into a test fixture. Ctrl+C to stop.
+ * --dump <dir> saves the region(s) read in the first tick that has any as PNG files in <dir>
+ * (window-tracked.png, window-full.png, monitor-full.png ...), to turn a real capture into a test fixture. Ctrl+C to stop.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -57,9 +58,9 @@ function explainRejected(img: RawImage): string {
 async function dump(dir: string, attempts: CaptureAttempt[]): Promise<void> {
   await mkdir(dir, { recursive: true });
   for (const a of attempts) {
-    const file = resolve(join(dir, `${a.path}.png`));
+    const file = resolve(join(dir, `${a.path}-${a.region}.png`));
     await writeFile(file, await a.png());
-    console.log(`dumped ${a.path} crop (${a.image.width}x${a.image.height}) to ${file}`);
+    console.log(`dumped ${a.path} ${a.region} region (${a.image.width}x${a.image.height}) to ${file}`);
   }
 }
 
@@ -75,8 +76,9 @@ async function probe(): Promise<void> {
     const ms = Math.round(performance.now() - start);
     const strip = img ? readStrip(img) : null;
     const d = lastDiagnostics as CaptureDiagnostics | undefined;
-    const path = d && (d.stage === "window" || d.stage === "monitor") ? ` path=${d.stage}` : "";
-    console.log(strip ? `fields=${JSON.stringify(strip.fields)}` : "nodata", `grab=${ms}ms${path}`);
+    const hit = d && (d.stage === "window" || d.stage === "monitor") ? d.attempts.find((a) => a.origin) : undefined;
+    const where = hit?.origin ? ` path=${hit.path} region=${hit.region} origin=(${hit.origin.x},${hit.origin.y})` : "";
+    console.log(strip ? `fields=${JSON.stringify(strip.fields)}` : "nodata", `grab=${ms}ms${where}`);
     if (!strip) {
       if (d?.stage === "no-window") {
         const list = d.warcraftWindows.map((w) => `"${w.title}" (${w.appName}${w.minimized ? ", minimized" : ""})`);
@@ -86,7 +88,7 @@ async function probe(): Promise<void> {
       } else if (d?.stage === "no-image") {
         console.log("  the window has no area to crop (check the geometry line)");
       } else if (d && (d.stage === "window" || d.stage === "monitor")) {
-        for (const a of d.attempts) console.log(`  ${a.path}: ${explainRejected(a.image)}`);
+        for (const a of d.attempts) console.log(`  ${a.path} ${a.region}: ${explainRejected(a.image)}`);
       }
     }
     if (dumpDir && !dumped && d && (d.stage === "window" || d.stage === "monitor")) {
