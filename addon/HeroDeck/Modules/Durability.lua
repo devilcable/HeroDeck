@@ -26,11 +26,16 @@ function Durability.Compute(readSlot)
   return lowest
 end
 
+-- Last computed percent (nil before the first update); the minimap button tooltip reads it.
+Durability.last = nil
+
 function Durability:Update()
-  ns.Channel:SetByte(self.FIELD, self.Compute(GetInventoryItemDurability))
+  local percent = self.Compute(GetInventoryItemDurability)
+  self.last = percent
+  ns.Channel:SetByte(self.FIELD, percent)
 end
 
--- Set once PLAYER_LOGIN has initialized the channel and claimed the field.
+-- Set once PLAYER_LOGIN has initialized the button and the channel and claimed the field.
 local ready = false
 
 local frame = CreateFrame("Frame")
@@ -40,7 +45,10 @@ frame:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
 frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
-    ns.Channel:Init()
+    -- The button hosts the grid: create it first, draw the grid on it, then place both.
+    ns.MinimapButton:Init()
+    ns.Channel:Init(ns.MinimapButton.frame)
+    ns.MinimapButton:Place(ns.MinimapButton.SavedAngle())
     ns.Channel:Register(Durability.FIELD)
     ready = true
   end

@@ -10,13 +10,13 @@ function loadFixture(name: string): RawImage {
   return { width: png.width, height: png.height, data: new Uint8Array(png.data) };
 }
 
-describe("real WoW Forever capture", () => {
-  // Window capture of the live client (2560x1440, D3D12, maximized), cropped to the top-left
-  // corner. The character's most damaged item was at 85 % when it was taken.
-  it("decodes durability 85 from a saved window capture", () => {
-    const strip = readStrip(loadFixture("strip-window.png"));
+describe("real WoW Forever capture (protocol v2)", () => {
+  // Window capture of the live client (2560x1440, D3D12, maximized), cropped around the HeroDeck
+  // minimap button. The character's most damaged item was at 57 % when it was taken.
+  it("decodes durability 57 from the minimap button grid", () => {
+    const strip = readStrip(loadFixture("grid-window.png"));
     expect(strip).not.toBeNull();
-    expect(strip!.version).toBe(1);
-    expect(strip!.fields[0]).toBe(85);
+    expect(strip!.version).toBe(2);
+    expect(strip!.fields).toEqual([57, null, null, null, null]);
   });
 });

@@ -1,68 +1,69 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CELL_PX, MAX_FIELDS, type RawImage } from "./protocol";
 import { readStrip } from "./strip";
+import { busyImage, expectedValues, fullGrid, idle, paintGrid, type Triple, vectors } from "./test-helpers";
 
-type Triple = [number, number, number];
-interface Vectors {
-  header: Triple[];
-  fields: { value: number; cells: [Triple, Triple] }[];
-}
-
-const vectors: Vectors = JSON.parse(
-  readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "tests", "vectors", "channel-v1.json"),
-    "utf8",
-  ),
-);
-const allCells: Triple[] = [...vectors.header, ...vectors.fields.flatMap((f) => f.cells)];
-const expectedValues = vectors.fields.slice(0, MAX_FIELDS).map((f) => f.value);
-
-/** Flat mid-grey background: a real image that never matches the finder. */
-function greyImage(width: number, height: number): RawImage {
-  return { width, height, data: new Uint8Array(width * height * 4).fill(128) };
-}
-
-function paintStrip(img: RawImage, x: number, y: number, cells: Triple[] = allCells): void {
-  cells.forEach((cell, i) => {
-    for (let dy = 0; dy < CELL_PX; dy++) {
-      for (let dx = 0; dx < CELL_PX; dx++) {
-        const o = ((y + dy) * img.width + x + i * CELL_PX + dx) * 4;
-        for (let c = 0; c < 3; c++) img.data[o + c] = cell[c];
-        img.data[o + 3] = 255;
-      }
-    }
-  });
-}
-
-/** White, black, magenta, then a white version cell: matches the finder, is not a valid strip. */
+/** White, black, magenta, then a white version cell: matches the finder, is not a valid header. */
 const decoy: Triple[] = [...vectors.header.slice(0, 3), [255, 255, 255]];
 
 describe("readStrip", () => {
-  it("decodes a single strip", () => {
-    const img = greyImage(200, 100);
-    paintStrip(img, 8, 31);
+  it("decodes a grid and returns its origin", () => {
+    const img = busyImage(200, 100, 1);
+    paintGrid(img, 8, 31);
     const strip = readStrip(img);
-    expect(strip?.version).toBe(1);
+    expect(strip?.version).toBe(2);
     expect(strip?.fields).toEqual(expectedValues);
+    expect(strip?.origin).toEqual({ x: 10, y: 33 });
   });
 
-  it("decodes the real strip when a decoy candidate comes first", () => {
-    const img = greyImage(200, 100);
-    paintStrip(img, 2, 5, decoy);
-    paintStrip(img, 8, 31);
-    expect(readStrip(img)?.fields).toEqual(expectedValues);
+  it("decodes a grid at (1700, 230) in a 2560x1440 image", () => {
+    const img = busyImage(2560, 1440, 2);
+    paintGrid(img, 1700, 230);
+    const strip = readStrip(img);
+    expect(strip?.fields).toEqual(expectedValues);
+    expect(strip?.origin).toEqual({ x: 1702, y: 232 });
   });
 
-  it("returns null when there is no strip", () => {
-    expect(readStrip(greyImage(200, 100))).toBeNull();
+  it("decodes a grid near the bottom-right edge", () => {
+    const img = busyImage(2560, 1440, 3);
+    paintGrid(img, 2560 - 24, 1440 - 14);
+    const strip = readStrip(img);
+    expect(strip?.fields).toEqual(expectedValues);
+    expect(strip?.origin).toEqual({ x: 2538, y: 1428 });
+  });
+
+  it("decodes the real grid, and returns its origin, when a decoy comes first", () => {
+    const img = busyImage(200, 100, 4);
+    paintGrid(img, 2, 5, decoy);
+    paintGrid(img, 8, 31);
+    const strip = readStrip(img);
+    expect(strip?.fields).toEqual(expectedValues);
+    expect(strip?.origin).toEqual({ x: 10, y: 33 });
+  });
+
+  it("decodes idle cells as null fields", () => {
+    const img = busyImage(200, 100, 5);
+    const only87: Triple[] = [...vectors.header, ...vectors.fields.find((f) => f.value === 87)!.cells];
+    while (only87.length < 15) only87.push(idle);
+    paintGrid(img, 20, 40, only87);
+    expect(readStrip(img)?.fields).toEqual([87, null, null, null, null]);
+  });
+
+  it("still decodes with 1 px blur at the cell edges", () => {
+    const img = busyImage(200, 100, 6);
+    paintGrid(img, 8, 31, fullGrid, true);
+    const strip = readStrip(img);
+    expect(strip?.fields).toEqual(expectedValues);
+    expect(strip?.origin).toEqual({ x: 10, y: 33 });
+  });
+
+  it("returns null in noise or a plain white image", () => {
+    expect(readStrip(busyImage(2560, 1440, 7))).toBeNull();
+    expect(readStrip({ width: 200, height: 100, data: new Uint8Array(200 * 100 * 4).fill(255) })).toBeNull();
   });
 
   it("returns null when only a decoy is present", () => {
-    const img = greyImage(200, 100);
-    paintStrip(img, 2, 5, decoy);
+    const img = busyImage(200, 100, 8);
+    paintGrid(img, 2, 5, decoy);
     expect(readStrip(img)).toBeNull();
   });
 });

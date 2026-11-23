@@ -12,7 +12,7 @@ interface Vectors {
 
 const vectors: Vectors = JSON.parse(
   readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "tests", "vectors", "channel-v1.json"),
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "tests", "vectors", "channel-v2.json"),
     "utf8",
   ),
 );
@@ -57,8 +57,14 @@ const fire = (lua: LuaEngine, event: string) =>
 
 const cellColor = async (lua: LuaEngine, cellIndex: number) =>
   lua.doString(
-    `local c = HeroDeckNS.Channel.frame.textures[${cellIndex + 1}].color; return {c.r, c.g, c.b}`,
+    `local c = HeroDeckNS.Channel.cells[${cellIndex}].color; return {c.r, c.g, c.b}`,
   );
+
+/** Lua: init the channel on a bare host frame (no minimap button). */
+const INIT_CHANNEL = `
+  local host = CreateFrame("Frame", nil, UIParent)
+  HeroDeckNS.Channel:Init(host)
+`;
 
 describe("Durability.Compute", () => {
   it("no slot with durability gives 100", async () => {
@@ -147,6 +153,66 @@ describe("Durability events", () => {
     });
   });
 
+  it("PLAYER_LOGIN creates the button and the grid on it", async () => {
+    await withAddon(async (lua) => {
+      await fire(lua, "PLAYER_LOGIN");
+      const ns = "HeroDeckNS";
+      expect(await lua.doString(`return ${ns}.MinimapButton.frame ~= nil and ${ns}.MinimapButton.frame.parent == Minimap`)).toBe(true);
+      expect(await lua.doString(`return ${ns}.Channel.host == ${ns}.MinimapButton.frame`)).toBe(true);
+      expect(await lua.doString(`return ${ns}.Channel.frame.parent == ${ns}.MinimapButton.frame`)).toBe(true);
+      expect(await lua.doString(`return #${ns}.Channel.frame.textures`)).toBe(16);
+      expect(await lua.doString(`return ${ns}.Channel.fields[0]`)).toBe(true);
+    });
+  });
+
+  it("PLAYER_LOGIN runs init, grid, place, register in that order, then draws", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`
+        local ns = HeroDeckNS
+        __log = {}
+        local function spy(tbl, key, label)
+          local orig = tbl[key]
+          tbl[key] = function(...) __log[#__log + 1] = label; return orig(...) end
+        end
+        spy(ns.MinimapButton, "Init", "button init")
+        spy(ns.Channel, "Init", "channel init")
+        spy(ns.MinimapButton, "Place", "place")
+        spy(ns.Channel, "Register", "register")
+        spy(ns.Durability, "Update", "update")
+      `);
+      await fire(lua, "PLAYER_LOGIN");
+      expect(await lua.doString("return __log")).toEqual(["button init", "channel init", "place", "register", "update"]);
+    });
+  });
+
+  it("PLAYER_LOGIN places the button at the saved angle", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString("HeroDeckDB = { minimap = { angle = 0 } }");
+      await fire(lua, "PLAYER_LOGIN");
+      // the offset is in the button's own (scaled) units: times the frame scale it is the on-screen 80, 0
+      const [x, y] = (await lua.doString(
+        "local b = HeroDeckNS.MinimapButton.frame; local p = b.points[1]; return { p.x * b.scale, p.y * b.scale }",
+      )) as number[];
+      expect(x).toBeCloseTo(80, 9);
+      expect(y).toBeCloseTo(0, 9);
+    });
+  });
+
+  it("Durability.last is set by Update", async () => {
+    const slots: Slots = { 1: [87, 100] };
+    await withAddon(
+      async (lua) => {
+        expect(await lua.doString("return HeroDeckNS.Durability.last")).toBeNull();
+        await fire(lua, "PLAYER_LOGIN");
+        expect(await lua.doString("return HeroDeckNS.Durability.last")).toBe(87);
+        slots[1] = [40, 100];
+        await fire(lua, "UPDATE_INVENTORY_DURABILITY");
+        expect(await lua.doString("return HeroDeckNS.Durability.last")).toBe(40);
+      },
+      { GetInventoryItemDurability: readSlotFor(slots) },
+    );
+  });
+
   it("events before PLAYER_LOGIN do not touch the channel", async () => {
     await withAddon(async (lua) => {
       for (const event of [
@@ -162,7 +228,7 @@ describe("Durability events", () => {
 
   it("Update reads GetInventoryItemDurability at call time", async () => {
     await withAddon(async (lua) => {
-      await lua.doString("HeroDeckNS.Channel:Init(); HeroDeckNS.Channel:Register(0)");
+      await lua.doString(INIT_CHANNEL + "HeroDeckNS.Channel:Register(0)");
       lua.global.set("GetInventoryItemDurability", readSlotFor({ 3: [87, 100] }));
       await lua.doString("HeroDeckNS.Durability:Update()");
       const vec = vectors.fields.find((f) => f.value === 87)!;

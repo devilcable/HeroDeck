@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- Channel protocol v1: pure encoding (no frames).
+-- Channel protocol v2: pure encoding (no frames).
 -- A cell is 6 bits drawn as one RGB color, 2 bits per channel (R high, G middle, B low).
 -- A field is one byte spread over 2 cells; see the design spec.
 
@@ -9,7 +9,9 @@ local floor = math.floor
 local Codec = {}
 
 Codec.LEVELS = { 0, 85, 170, 255 }
-Codec.VERSION = 1
+Codec.VERSION = 2
+-- Colour of a grid cell with no field: more than 30 from every level, so it never decodes.
+Codec.IDLE = { r = 48, g = 48, b = 48 }
 
 -- 4-bit XOR using arithmetic only (no bit library, no operators): runs on Lua 5.1 and 5.4.
 function Codec.Xor4(a, b)

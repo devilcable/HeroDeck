@@ -34,7 +34,7 @@ export function decodeField(a: RGB, b: RGB, white: RGB, black: RGB): number | nu
   return check === expected ? byte : null;
 }
 
-/** Decode a whole strip (header cells first). Null when the header is not a valid v1 header. */
+/** Decode a whole strip (header cells first). Null when the header is not a valid v2 header. */
 export function decodeStrip(cells: RGB[]): { version: number; fields: (number | null)[] } | null {
   if (cells.length < HEADER_CELLS) return null;
   const [white, black, marker, version] = cells;

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "icon": "node tools/make-icon.mjs"
   },
   "devDependencies": {
     "luaparse": "0.3.1",

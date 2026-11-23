@@ -3,14 +3,14 @@ import type { RawImage } from "./protocol";
 import { ChannelReader, FAILS_BEFORE_NODATA, POLL_MS, type ChannelFrame } from "./reader";
 import { readStrip } from "./strip";
 
-type Strip = { version: number; fields: (number | null)[] };
+type Strip = { version: number; fields: (number | null)[]; origin: { x: number; y: number } };
 
 /** The reader decodes through readStrip; the tests script its results. */
 vi.mock("./strip", () => ({ readStrip: vi.fn() }));
 const mockedReadStrip = vi.mocked(readStrip);
 
 const IMG: RawImage = { width: 1, height: 1, data: new Uint8Array(4) };
-const strip = (...fields: (number | null)[]): Strip => ({ version: 1, fields });
+const strip = (...fields: (number | null)[]): Strip => ({ version: 2, fields, origin: { x: 0, y: 0 } });
 
 /**
  * A source whose grab() plays the next scripted outcome: a decodable strip, "blank" (an image

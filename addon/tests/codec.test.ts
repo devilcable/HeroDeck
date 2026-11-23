@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { decodeField } from "../../streamdeck/src/channel/decode";
 import { ADDON_FILES, createLua, loadAddonFiles } from "./harness";
 
 type Rgb = [number, number, number];
@@ -12,7 +13,7 @@ interface Vectors {
 
 const vectors: Vectors = JSON.parse(
   readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "tests", "vectors", "channel-v1.json"),
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "tests", "vectors", "channel-v2.json"),
     "utf8",
   ),
 );
@@ -29,11 +30,21 @@ async function withCodec<T>(fn: (lua: Awaited<ReturnType<typeof createLua>>) => 
   }
 }
 
-describe("channel protocol v1 codec", () => {
+describe("channel protocol v2 codec", () => {
   it("header matches vectors", async () => {
     await withCodec(async (lua) => {
       const cells = await lua.doString("return HeroDeckNS.Codec.HeaderCells()");
       expect(cells.map(toRgb)).toEqual(vectors.header);
+    });
+  });
+
+  it("IDLE never decodes", async () => {
+    await withCodec(async (lua) => {
+      const cell = await lua.doString("local i = HeroDeckNS.Codec.IDLE return { r = i.r, g = i.g, b = i.b }");
+      expect(cell).toEqual({ r: 48, g: 48, b: 48 });
+      const white = { r: 255, g: 255, b: 255 };
+      const black = { r: 0, g: 0, b: 0 };
+      expect(decodeField(cell, cell, white, black)).toBeNull();
     });
   });
 

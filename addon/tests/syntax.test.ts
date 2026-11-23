@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import luaparse from "luaparse";
@@ -10,7 +10,15 @@ describe("addon skeleton", () => {
     const lines = toc.split(/\r?\n/);
     expect(lines).toContain("## Interface: 16001");
     expect(lines).toContain("## Title: HeroDeck");
-    expect(toc).not.toContain("## SavedVariables");
+  });
+
+  it("toc declares IconTexture and SavedVariables HeroDeckDB", () => {
+    const toc = readFileSync(join(ADDON_DIR, "HeroDeck.toc"), "utf8");
+    const lines = toc.split(/\r?\n/);
+    expect(lines).toContain("## SavedVariables: HeroDeckDB");
+    expect(lines).toContain("## IconTexture: Interface\\AddOns\\HeroDeck\\Media\\Icon");
+    expect(existsSync(join(ADDON_DIR, "Media", "Icon.tga"))).toBe(true);
+    expect(ADDON_FILES.some((file) => file.startsWith("#") || file.includes("IconTexture"))).toBe(false);
   });
 
   it("every toc file exists and parses as Lua 5.1", () => {
