@@ -2,7 +2,7 @@
 
 Date: 2026-11-23
 Branch: `feature/slot-durability` (from `develop`)
-Status: draft, waiting for user approval
+Status: approved by the user on 2026-11-23. Every decision below is final for this feature.
 Builds on: `2026-11-18-durability-design.md` (durability key) and `2026-11-20-minimap-button-design.md`
 (protocol v2 grid in the minimap button)
 
