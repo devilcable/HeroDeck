@@ -3,14 +3,17 @@
  *   npm run probe [-- --dump <dir>]
  * Every 500 ms it prints the decoded fields (or "nodata"), the capture path that produced the
  * image (window or monitor), the region that decoded (tracked = around the last position, full =
- * the whole game area), the grid origin in that capture (pixels) and the grab time. Capture errors are printed as they happen, and the
- * window/monitor geometry once per path. When there is nothing to decode it says why:
+ * the whole game area), the grid origin in that capture (pixels) and the grab time. Capture errors
+ * are printed as they happen, and the window/monitor geometry once per path. While the grid is not
+ * found, a full scan runs only every 4th tick: the other ticks print "nodata" with no detail. When
+ * there is nothing to decode it says why:
  *   - no window titled exactly "World of Warcraft": lists the windows with "warcraft" in the title;
  *   - strip candidates found but rejected: prints their count and the 4 raw header colors (r,g,b)
- *     of the first one. Expected: 255,255,255 | 0,0,0 | 255,0,255 | 0,0,85. A red/blue swap shows
- *     up as a version cell of 85,0,0.
+ *     of the first one. Expected: 255,255,255 | 0,0,0 | 255,0,255 | 0,0,170. A red/blue swap shows
+ *     up as a version cell of 170,0,0.
  * --dump <dir> saves the region(s) read in the first tick that has any as PNG files in <dir>
- * (window-tracked.png, window-full.png, monitor-full.png ...), to turn a real capture into a test fixture. Ctrl+C to stop.
+ * (window-tracked.png, window-full.png, monitor-full.png ...), to turn a real capture into a test
+ * fixture. Ctrl+C to stop.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
