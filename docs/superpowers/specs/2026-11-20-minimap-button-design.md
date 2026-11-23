@@ -90,11 +90,16 @@ Only the **geometry** and the **version** change; the color coding is identical 
 - Parent: `Minimap`. Size: the usual minimap button size (31 × 31 UI units at the minimap's scale, my call:
   it then looks like the other addons' buttons), round border/background drawn by the addon (original art,
   see Icon).
-- Size vs grid (my call): the button scales with the UI like the others, while the grid stays 24 × 14
-  physical pixels. The art keeps the grid area centered and works from a button of **32 physical pixels**
-  upward (1080p at a small UI scale); on larger buttons the device body simply has more margin. Tests cover
-  physical heights 1080 and 1440 and UI scales 0.64–1.0. The art is drawn so the grid sits on the device
-  body at any of those sizes (the body is stretched art; the cells are separate textures on top).
+- Size vs grid (user decision 2026-11-23, replaces "works from 32 physical pixels"): the grid stays
+  24 × 14 physical pixels (on a 28 × 18 body) while the round Blizzard art shrinks with the UI scale, so
+  the button is **auto-scaled**: its frame scale is `s = max(1, 38 × unit / (20 × Minimap effective scale))`
+  with `unit = 768 / physical height`, which makes the background disc (20 UI units of the button) at least
+  **38 physical pixels** across (the body's diagonal is 33.3 px, plus margin). Where the disc is already
+  that large, `s = 1` (unchanged look). The round art is kept; the grid sits inside the ring at any UI
+  scale and resolution. `s` is recomputed whenever the button is placed, on `UI_SCALE_CHANGED` and
+  `DISPLAY_SIZE_CHANGED`, and from the follow check when the Minimap effective scale changed (Edit Mode).
+  The `SetPoint` offsets are divided by `s` (they are in the button's scaled units), so the button stays on
+  the minimap edge at the same on-screen radius.
 - Position: on a circle centered on the minimap, radius = minimap radius + a small offset so it sits on the
   edge like other buttons (my call: same radius formula other minimap buttons use, `width/2 + 10` UI units,
   adjusted visually during the in-game check).

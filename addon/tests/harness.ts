@@ -27,7 +27,8 @@ export const ADDON_FILES: string[] = readFileSync(join(ADDON_DIR, "HeroDeck.toc"
  * GetLocale, GameTooltip (owner, anchor, lines, shown), SlashCmdList = {}, print captured
  * in __printed. Frames answer GetWidth / GetHeight; textures record texturePath (SetTexture).
  * Settable per frame by tests: center = {x, y} (returned by GetCenter, nil when unset) and
- * effectiveScale (returned by GetEffectiveScale, 1 when unset); GetFrameLevel returns
+ * effectiveScale (returned by GetEffectiveScale; when unset: parent effective scale x the SetScale
+ * value for a scaled child that does not ignore its parent's scale, else 1); GetFrameLevel returns
  * frameLevel (0 when unset).
  * Recorded per texture: layer, color = {r,g,b,a} (rgb stored x255 and rounded), width,
  * height, points = { {point, relativeTo, relativePoint, x, y}, ... }.
@@ -94,7 +95,14 @@ const LUA_DEFAULTS = `
     SetFrameStrata = function(self, strata) self.strata = strata end,
     SetFrameLevel = function(self, level) self.frameLevel = level end,
     GetFrameLevel = function(self) return self.frameLevel or 0 end,
-    GetEffectiveScale = function(self) return self.effectiveScale or 1 end,
+    GetEffectiveScale = function(self)
+      if self.effectiveScale then return self.effectiveScale end
+      -- A scaled child follows its parent: parent effective scale x own SetScale value.
+      if self.scale and self.parent and not self.ignoreParentScale then
+        return self.parent:GetEffectiveScale() * self.scale
+      end
+      return 1
+    end,
     GetCenter = function(self)
       if self.center then return self.center.x, self.center.y end
     end,

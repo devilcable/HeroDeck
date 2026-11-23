@@ -29,6 +29,9 @@ const fire = (lua: LuaEngine, event: string) =>
     end
   `);
 const nums = async (lua: LuaEngine, expr: string) => (await lua.doString(`return {${expr}}`)) as number[];
+/** The button's last anchor offset in Minimap units (the SetPoint offset is in the button's own, scaled units). */
+const onMinimap = (lua: LuaEngine) =>
+  nums(lua, `${BTN}.points[#${BTN}.points].x * ${BTN}.scale, ${BTN}.points[#${BTN}.points].y * ${BTN}.scale`);
 
 /** Lua: count Channel:Layout calls in the global __layouts. */
 const SPY_LAYOUT = `
@@ -185,9 +188,12 @@ describe("MinimapButton frame", () => {
       await lua.doString(`${MB}:Init(); ${MB}:Place(0)`);
       const p = await lua.doString(`
         local p = ${BTN}.points[#${BTN}.points]
-        return { p.point, p.relativeTo == Minimap, p.relativePoint, p.x, p.y }
+        return { p.point, p.relativeTo == Minimap, p.relativePoint }
       `);
-      expect(p).toEqual(["CENTER", true, "CENTER", 80, 0]);
+      expect(p).toEqual(["CENTER", true, "CENTER"]);
+      const [x, y] = await onMinimap(lua);
+      expect(x).toBeCloseTo(80, 9);
+      expect(y).toBeCloseTo(0, 9);
     });
   });
 
@@ -212,7 +218,7 @@ describe("MinimapButton frame", () => {
   it("Reset places the button at 225 and saves it", async () => {
     await withAddon(async (lua) => {
       await lua.doString(`${MB}:Init(); ${MB}:Place(10); ${MB}:Reset()`);
-      const [x, y] = await nums(lua, `${BTN}.points[#${BTN}.points].x, ${BTN}.points[#${BTN}.points].y`);
+      const [x, y] = await onMinimap(lua);
       expect(x).toBeCloseTo(-56.5685424949, 6);
       expect(y).toBeCloseTo(-56.5685424949, 6);
       expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(225);
@@ -233,9 +239,9 @@ describe("MinimapButton drag", () => {
       expect(await lua.doString("return HeroDeckDB == nil or HeroDeckDB.minimap == nil or HeroDeckDB.minimap.angle ~= 90")).toBe(true);
       await lua.doString(`${BTN}.scripts.OnDragStop(${BTN})`);
       expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(90);
-      const [x, y] = await nums(lua, `${BTN}.points[#${BTN}.points].x, ${BTN}.points[#${BTN}.points].y`);
+      const [x, y] = await onMinimap(lua);
       expect(x).toBeCloseTo(0, 6);
-      expect(y).toBe(MINIMAP_HALF + 10);
+      expect(y).toBeCloseTo(MINIMAP_HALF + 10, 9);
     });
   });
 
@@ -271,9 +277,9 @@ describe("MinimapButton drag", () => {
           ${BTN}.scripts.OnUpdate(${BTN}, 0.016)
         `);
         expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(90);
-        const [x, y] = await nums(lua, `${BTN}.points[#${BTN}.points].x, ${BTN}.points[#${BTN}.points].y`);
+        const [x, y] = await onMinimap(lua);
         expect(x).toBeCloseTo(0, 6);
-        expect(y).toBe(MINIMAP_HALF + 10);
+        expect(y).toBeCloseTo(MINIMAP_HALF + 10, 9);
       });
     });
   }
@@ -383,6 +389,163 @@ describe("MinimapButton tooltip", () => {
   });
 });
 
+describe("MinimapButton scale", () => {
+  const QHD = { GetPhysicalScreenSize: () => LuaMultiReturn.of(2560, 1440) };
+  const expectedScale = (minimapScale: number, height: number) =>
+    Math.max(1, (38 * (768 / height)) / (20 * minimapScale));
+  const point = (lua: LuaEngine) => nums(lua, `${BTN}.points[#${BTN}.points].x, ${BTN}.points[#${BTN}.points].y`);
+
+  it("ScaleFor makes the background disc at least 38 physical pixels across", async () => {
+    await withAddon(async (lua) => {
+      const [a] = await nums(lua, `${MB}.ScaleFor(0.64, 1440)`);
+      expect(a).toBeCloseTo((38 * (768 / 1440)) / (20 * 0.64), 9);
+      expect(a).toBeCloseTo(1.5833333333, 9);
+      const [b] = await nums(lua, `${MB}.ScaleFor(1.0, 1440)`);
+      expect(b).toBeCloseTo(1.0133333333, 9);
+      expect(await nums(lua, `${MB}.ScaleFor(1.2, 1440)`)).toEqual([1]); // already large enough
+    });
+  });
+
+  it("ScaleFor falls back to 1 on unusable input", async () => {
+    await withAddon(async (lua) => {
+      for (const args of ["nil, 1440", "0.64, nil", "0, 1440", "0.64, 0", "-1, 1440", '"x", 1440']) {
+        expect(await nums(lua, `${MB}.ScaleFor(${args})`), args).toEqual([1]);
+      }
+    });
+  });
+
+  it("Place applies the scale and keeps the on-screen radius", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); Minimap.effectiveScale = 0.64; ${MB}:Place(225)`);
+      const [scale] = await nums(lua, `${BTN}.scale`);
+      expect(scale).toBeCloseTo(1.5833333333, 9);
+      expect(scale).toBeCloseTo(expectedScale(0.64, 1440), 12);
+      const [x, y] = await point(lua);
+      const [wantX, wantY] = await nums(lua, `${MB}.PositionFor(225, ${MINIMAP_HALF + 10})`);
+      expect(x * scale).toBeCloseTo(wantX, 9);
+      expect(y * scale).toBeCloseTo(wantY, 9);
+    }, "", QHD);
+  });
+
+  it("keeps scale 1 and the plain offset when the disc is already large enough", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); Minimap.effectiveScale = 1.2; ${MB}:Place(0)`);
+      expect(await nums(lua, `${BTN}.scale`)).toEqual([1]);
+      const [x, y] = await point(lua);
+      expect(x).toBeCloseTo(80, 9);
+      expect(y).toBeCloseTo(0, 9);
+    }, "", QHD);
+  });
+
+  it("the button's effective scale is the Minimap's times the frame scale", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); Minimap.effectiveScale = 0.64; ${MB}:Place(225)`);
+      const [scale, effective] = await nums(lua, `${BTN}.scale, ${BTN}:GetEffectiveScale()`);
+      expect(effective).toBeCloseTo(0.64 * scale, 12);
+      // the disc (20 UI units of the button) is 38 physical pixels across
+      expect((20 * effective) / (768 / 1440)).toBeCloseTo(38, 9);
+    }, "", QHD);
+  });
+
+  for (const event of ["UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED"]) {
+    it(`re-scales on ${event}`, async () => {
+      await withAddon(async (lua) => {
+        await lua.doString(`${MB}:Init(); HeroDeckNS.Channel:Init(${BTN}); ${MB}:Place(0)`);
+        expect((await nums(lua, `${BTN}.scale`))[0]).toBeCloseTo(expectedScale(1, 1440), 9);
+
+        // the user raises the UI scale: the Minimap grows, the button needs less
+        await lua.doString("Minimap.effectiveScale = 1.2");
+        await lua.doString(SPY_LAYOUT);
+        await fire(lua, event);
+        expect(await nums(lua, `${BTN}.scale`)).toEqual([1]);
+        const [x] = await point(lua);
+        expect(x).toBeCloseTo(80, 9);
+        expect(await lua.doString("return __layouts")).toBeGreaterThanOrEqual(1);
+
+        // the resolution drops: the disc shrinks, the button grows again
+        lua.global.set("GetPhysicalScreenSize", () => LuaMultiReturn.of(1920, 1080));
+        await fire(lua, event);
+        const [scale] = await nums(lua, `${BTN}.scale`);
+        expect(scale).toBeCloseTo(expectedScale(1.2, 1080), 9);
+        expect(scale).toBeGreaterThan(1);
+        const [x2] = await point(lua);
+        expect(x2 * scale).toBeCloseTo(80, 9);
+      }, "", QHD);
+    });
+  }
+
+  it("PLAYER_ENTERING_WORLD alone does not change the scale (it only re-snaps the grid)", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); ${MB}:Place(0); Minimap.effectiveScale = 1.2`);
+      await fire(lua, "PLAYER_ENTERING_WORLD");
+      expect((await nums(lua, `${BTN}.scale`))[0]).toBeCloseTo(expectedScale(1, 1440), 9);
+    }, "", QHD);
+  });
+
+  it("re-scales from the follow check when the minimap scale changed", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); HeroDeckNS.Channel:Init(${BTN}); ${MB}:Place(225)`);
+      const tick = (dt: number) => lua.doString(`${BTN}.scripts.OnUpdate(${BTN}, ${dt})`);
+      await tick(0.3);
+      expect((await nums(lua, `${BTN}.scale`))[0]).toBeCloseTo(expectedScale(1, 1440), 9);
+
+      // Edit Mode scales the minimap
+      await lua.doString("Minimap.effectiveScale = 0.64");
+      await tick(0.1); // throttled
+      expect((await nums(lua, `${BTN}.scale`))[0]).toBeCloseTo(expectedScale(1, 1440), 9);
+      await tick(0.2);
+      const [scale] = await nums(lua, `${BTN}.scale`);
+      expect(scale).toBeCloseTo(expectedScale(0.64, 1440), 9);
+      const [x, y] = await point(lua);
+      const [wantX, wantY] = await nums(lua, `${MB}.PositionFor(225, ${MINIMAP_HALF + 10})`);
+      expect(x * scale).toBeCloseTo(wantX, 9);
+      expect(y * scale).toBeCloseTo(wantY, 9);
+    }, "", QHD);
+  });
+
+  it("an unchanged minimap scale does not re-place the button from the follow check", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); ${MB}:Place(225)`);
+      await lua.doString(`
+        __places = 0
+        local orig = ${MB}.Place
+        ${MB}.Place = function(self, a) __places = __places + 1; return orig(self, a) end
+        ${BTN}.scripts.OnUpdate(${BTN}, 0.3)
+        ${BTN}.scripts.OnUpdate(${BTN}, 0.3)
+      `);
+      expect(await lua.doString("return __places")).toBe(0);
+    }, "", QHD);
+  });
+
+  it("the grid stays centered on the button (button scale included in the center math)", async () => {
+    await withAddon(async (lua) => {
+      await lua.doString(`${MB}:Init(); HeroDeckNS.Channel:Init(${BTN}); Minimap.effectiveScale = 0.64; ${MB}:Place(225)`);
+      const [scale, px, py] = await nums(lua, `${BTN}.scale, ${BTN}.points[#${BTN}.points].x, ${BTN}.points[#${BTN}.points].y`);
+      expect(scale).toBeGreaterThan(1);
+      const effective = 0.64 * scale;
+      // True screen center in effective-scale-1 units: Minimap center + the anchor offset in the button's units.
+      const trueX = 1000 * 0.64 + px * effective;
+      const trueY = 500 * 0.64 + py * effective;
+      // GetCenter reports the button's own (scaled) units, as in WoW.
+      await lua.doString(`${BTN}.center = { x = ${trueX / effective}, y = ${trueY / effective} }`);
+      await lua.doString(`${BTN}.scripts.OnUpdate(${BTN}, 0.3)`); // the follow check re-snaps the grid
+
+      const unit = 768 / 1440;
+      const [gx, gy] = await nums(
+        lua,
+        "HeroDeckNS.Channel.frame.points[#HeroDeckNS.Channel.frame.points].x, HeroDeckNS.Channel.frame.points[#HeroDeckNS.Channel.frame.points].y",
+      );
+      const left = gx / unit;
+      const top = gy / unit;
+      expect(Math.abs(left - Math.round(left))).toBeLessThan(1e-6);
+      expect(Math.abs(top - Math.round(top))).toBeLessThan(1e-6);
+      // grid is 24 x 14 physical px: its middle is within half a pixel of the true center
+      expect(Math.abs(left + 12 - trueX / unit)).toBeLessThanOrEqual(0.5 + 1e-6);
+      expect(Math.abs(top - 7 - trueY / unit)).toBeLessThanOrEqual(0.5 + 1e-6);
+    }, "", QHD);
+  });
+});
+
 describe("/herodeck", () => {
   it("registers the slash command", async () => {
     await withAddon(async (lua) => {
@@ -395,7 +558,7 @@ describe("/herodeck", () => {
     await withAddon(async (lua) => {
       await lua.doString(`${MB}:Init(); ${MB}:Place(40); SlashCmdList.HERODECK("reset")`);
       expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(225);
-      const [x] = await nums(lua, `${BTN}.points[#${BTN}.points].x`);
+      const [x] = await onMinimap(lua);
       expect(x).toBeCloseTo(-56.5685424949, 6);
       await lua.doString(`${MB}:Place(40); SlashCmdList.HERODECK("  RESET ")`);
       expect(await lua.doString("return HeroDeckDB.minimap.angle")).toBe(225);

@@ -189,9 +189,12 @@ describe("Durability events", () => {
     await withAddon(async (lua) => {
       await lua.doString("HeroDeckDB = { minimap = { angle = 0 } }");
       await fire(lua, "PLAYER_LOGIN");
-      expect(
-        await lua.doString("local p = HeroDeckNS.MinimapButton.frame.points[1]; return { p.x, p.y }"),
-      ).toEqual([80, 0]);
+      // the offset is in the button's own (scaled) units: times the frame scale it is the on-screen 80, 0
+      const [x, y] = (await lua.doString(
+        "local b = HeroDeckNS.MinimapButton.frame; local p = b.points[1]; return { p.x * b.scale, p.y * b.scale }",
+      )) as number[];
+      expect(x).toBeCloseTo(80, 9);
+      expect(y).toBeCloseTo(0, 9);
     });
   });
 
