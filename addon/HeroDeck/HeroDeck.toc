@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: HeroDeck
+## Notes: Shows your character data on an Elgato Stream Deck.
+## Author: devilcable
+## Version: 0.1.0
+
+Core/Init.lua
+Core/Codec.lua
+Core/Channel.lua
+Modules/Durability.lua

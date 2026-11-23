@@ -1,0 +1,9 @@
+{
+	"com.devilcable.herodeck.durability": {
+		"Name": "Durability",
+		"Tooltip": "Durability of your most damaged item"
+	},
+	"Localization": {
+		"Show percentage": "Show percentage"
+	}
+}

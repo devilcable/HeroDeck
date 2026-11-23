@@ -12,3 +12,8 @@ Thumbs.db
 
 # Claude local settings
 .claude/settings.local.json
+
+# Stream Deck plugin build output
+streamdeck/*.sdPlugin/bin/
+streamdeck/*.sdPlugin/logs/
+streamdeck/*.sdPlugin/node_modules/
