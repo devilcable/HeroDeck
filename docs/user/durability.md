@@ -72,12 +72,25 @@ Select the key in the Stream Deck app to see its settings:
 
 - **Show percentage** (default: on). Turn it off to see only the colored icon.
 
-## The small strip in the top-left corner
+## The HeroDeck minimap button
 
-The addon cannot talk to the Stream Deck directly: WoW addons have no network or file access. So the
-addon draws a tiny strip of colored pixels (about 18 × 3 pixels) in the **top-left corner** of the game
-screen, and the plugin reads it from a capture of the game window. This is why you see a few colored dots
-in that corner. Do not cover that corner with another window.
+![](img/icon.png)
+
+The addon adds a round **HeroDeck button** on the edge of the minimap. Its icon is a small Stream Deck
+with 15 keys.
+
+- **Move it:** hold the left mouse button on it and drag: it slides along the minimap's circle. Its place
+  is kept between sessions.
+- **Reset it:** type `/herodeck reset` to put it back at its starting place (lower left).
+- **Hover it:** the tooltip shows `HeroDeck` and your durability (`Durability 80%`, French client
+  `Durabilité 80 %`).
+- The button is a little bigger than other minimap buttons on some screens: it grows so its keys fit
+  inside the ring.
+
+**Why the keys change color:** the addon cannot talk to the Stream Deck directly (WoW addons have no
+network or file access). The colored keys of the icon *are* the data: the plugin finds the button in a
+capture of the game window and reads their colors. The button must therefore stay visible on screen for
+the key to update. You can put it anywhere along the minimap's edge.
 
 The plugin only **reads** the game window. It never presses keys or acts in the game.
 
@@ -86,6 +99,9 @@ The plugin only **reads** the game window. It never presses keys or acts in the 
 The plugin could not read the strip. Usual causes:
 
 - WoW is not running, or it is **minimized** to the taskbar.
+- The **minimap button is hidden or covered**: interface hidden (Alt+Z), the big world map, a full-screen
+  panel (collections, talents, adventure guide), or another window over the minimap. The key comes back by
+  itself about 2 seconds after the button is visible again.
 - A **loading screen** is showing: the key turns grey for the length of the loading screen and comes back
   by itself. Short loading screens (under about 1.5 s) are not visible.
 - The game runs in **exclusive fullscreen**: switch to windowed or windowed (fullscreen).
@@ -105,6 +121,7 @@ cd streamdeck
 npm run probe
 ```
 
-It shows the decoded value, the capture path (`window` or `monitor`), the capture time, and, when nothing
+It shows the decoded values, the capture path (`window` or `monitor`), the region (`full` scan or
+`tracked` around the last position), the button's position (`origin`), the capture time, and, when nothing
 is decoded, why: no window titled `World of Warcraft`, or the raw colors of the header it found. Add
-`-- --dump <folder>` to save the captured corner as a PNG.
+`-- --dump <folder>` to save the captured image as a PNG.

@@ -12,7 +12,9 @@ HeroDeck = two parts that work together:
 ## Layout
 
 ```
-addon/HeroDeck/            WoW addon (HeroDeck.toc, Core/Codec.lua, Core/Channel.lua, Modules/Durability.lua)
+addon/HeroDeck/            WoW addon (HeroDeck.toc, Core/Codec.lua, Core/Channel.lua, Core/MinimapButton.lua,
+                           Modules/Durability.lua, Media/Icon.tga; SavedVariables HeroDeckDB)
+tools/make-icon.mjs        generates Media/Icon.tga and docs/user/img/icon.png (`npm run icon`)
 addon/tests/               Vitest tests that run the addon's Lua through wasmoon (harness.ts mocks the WoW API)
 streamdeck/                Stream Deck plugin (@elgato/streamdeck 3.0.4, Node 24)
   src/channel/             screen pixel channel: protocol, decode, locate, strip, capture, reader
@@ -32,11 +34,12 @@ docs/superpowers/          specs and plans
 - Install for development:
   - addon: `cmd /c mklink /J "<AddOns>\HeroDeck" "D:\Git\herodeck\addon\HeroDeck"`
   - plugin: `cd streamdeck && npx streamdeck link com.devilcable.herodeck.sdPlugin`, then quit and restart the Stream Deck app once (a newly linked plugin is only discovered at app start); after rebuilds `npx streamdeck restart com.devilcable.herodeck` is enough
-- In-game diagnostic (WoW running): `cd streamdeck && npm run probe` (add `-- --dump <dir>` to save the captured crop as PNG)
+- In-game diagnostic (WoW running): `cd streamdeck && npm run probe` (add `-- --dump <dir>` to save the captured image as PNG)
+- Regenerate the addon icon: `npm run icon` (root)
 
-## Channel (decided, see `docs/superpowers/specs/2026-11-18-durability-design.md`)
+## Channel (decided, see `docs/superpowers/specs/2026-11-18-durability-design.md` and `2026-11-20-minimap-button-design.md`)
 
-Game → plugin uses the **screen pixel channel**, protocol v1: a strip of 3×3 physical-pixel cells at the top-left of the game screen (header white/black/magenta/version, then 2-cell fields of 1 byte + 4-bit check, 4 levels per color channel, normalized against the white/black reference cells). The plugin captures the WoW window (falls back to the monitor), finds the strip, and decodes it. Lua encoder (`Codec.lua`) and TS decoder (`decode.ts`) must stay in sync: `tests/vectors/channel-v1.json` and `tests/roundtrip.test.ts` guard that.
+Game → plugin uses the **screen pixel channel**, protocol **v2**: a 5×3 grid of 4×4 physical-pixel cells (pitch 5, row-major) drawn inside the HeroDeck **minimap button** (drag along the minimap edge, `/herodeck reset`, angle saved in `HeroDeckDB.minimap.angle`; the button auto-scales so the grid fits its ring). Cells: header white/black/magenta/version(2), then up to 5 fields of 2 cells (1 byte + 4-bit check), idle cells `(48,48,48)`; 4 levels per color channel, normalized against the white/black reference cells. The grid is snapped to whole physical pixels and anchored to `WorldFrame`. The plugin captures the WoW window (falls back to the monitor), finds the grid anywhere (full scan, then tracked ±64 px around the last position; full scans throttled to every 4th read while lost), and decodes it. Hidden or covered button (Alt+Z, world map, loading screen) → "no data". Lua and TS must stay in sync: `tests/vectors/channel-v2.json`, `tests/roundtrip.test.ts` (encoding), `tests/geometry.test.ts` (grid layout) and `tests/fixture.test.ts` (real capture) guard that.
 
 ## Workflow (user rules: follow every time)
 
