@@ -148,21 +148,42 @@ export function cropRaw(img: RawImage, rect: Rect): RawImage {
   return { width: rect.width, height: rect.height, data };
 }
 
-/** One capture of a path, as `readGame` sees it: its size, the area to scan in full, and a way to read a region. */
+/** The pixels of a region of a capture, and a lazy PNG of the same pixels. */
+export interface CapturedPixels {
+  image: RawImage;
+  png: () => Promise<Buffer>;
+}
+
+/**
+ * One capture of a path, as `readGame` sees it: its size, the area to scan in full, and a way to
+ * read a region. `whole` returns the entire capture without copying it first; `readGame` uses it
+ * instead of `crop` when the region is the whole capture.
+ */
 export interface GameCapture {
   size: { width: number; height: number };
   full: Rect | null;
-  crop(rect: Rect): Promise<{ image: RawImage; png: () => Promise<Buffer> }>;
+  crop(rect: Rect): Promise<CapturedPixels>;
+  whole(): Promise<CapturedPixels>;
 }
 
-/** What `readGame` remembers between grabs: the path that last decoded, and per path the grid origin in that capture. */
+/** While no grid position is known, the whole game area is scanned only on every this many grabs (about 2 s). */
+export const FULL_SCAN_EVERY = 4;
+
+/**
+ * What `readGame` remembers between grabs: the path that last decoded, per path the grid origin in
+ * that capture, how many grabs ago the grid was lost, and whether the window path ever decoded.
+ */
 export interface GrabState {
   lastGood: CapturePath | null;
   last: Record<CapturePath, Point | null>;
+  /** Grabs made since the grid was lost; a full scan runs when it is a multiple of FULL_SCAN_EVERY. */
+  lostGrabs: number;
+  /** True once the window capture has decoded: the monitor capture is then only for a path that decoded too. */
+  windowDecoded: boolean;
 }
 
 export function newGrabState(): GrabState {
-  return { lastGood: null, last: { window: null, monitor: null } };
+  return { lastGood: null, last: { window: null, monitor: null }, lostGrabs: 0, windowDecoded: false };
 }
 
 /**
@@ -172,13 +193,25 @@ export function newGrabState(): GrabState {
  * decodes a small image, not the whole capture. When neither region of a path decodes, the last
  * position of that path is forgotten. `image` is null when nothing decoded; `attempts` lists every
  * read made.
+ *
+ * While no position is known (the grid is hidden or lost) the full scan is costly, so it runs on
+ * every FULL_SCAN_EVERY-th grab only; the other grabs return `skipped` with nothing captured (the
+ * reader counts them as failed reads). Once the window path has decoded, the monitor path is only
+ * tried while it has a position of its own: the window capture works for this game.
  */
 export async function readGame(
   capture: (path: CapturePath) => Promise<GameCapture>,
   state: GrabState,
-): Promise<{ image: RawImage | null; attempts: CaptureAttempt[] }> {
+): Promise<{ image: RawImage | null; attempts: CaptureAttempt[]; skipped?: true }> {
+  const lost = !state.last.window && !state.last.monitor;
+  if (lost) {
+    const wait = state.lostGrabs % FULL_SCAN_EVERY !== 0;
+    state.lostGrabs++;
+    if (wait) return { image: null, attempts: [], skipped: true };
+  }
   const attempts: CaptureAttempt[] = [];
-  for (const path of captureOrder(state.lastGood)) {
+  const paths = captureOrder(state.lastGood).filter((p) => p === "window" || !state.windowDecoded || state.last.monitor);
+  for (const path of paths) {
     const cap = await capture(path);
     const previous = state.last[path];
     const tracked = previous ? trackRect(previous, cap.size) : null;
@@ -186,7 +219,8 @@ export async function readGame(
     if (tracked) regions.push({ region: "tracked", rect: tracked });
     if (cap.full) regions.push({ region: "full", rect: cap.full });
     for (const { region, rect } of regions) {
-      const { image, png } = await cap.crop(rect);
+      const wholeCapture = rect.x === 0 && rect.y === 0 && rect.width === cap.size.width && rect.height === cap.size.height;
+      const { image, png } = await (wholeCapture ? cap.whole() : cap.crop(rect));
       const attempt: CaptureAttempt = { path, region, rect, image, png };
       attempts.push(attempt);
       const strip = readStrip(image);
@@ -195,6 +229,8 @@ export async function readGame(
       attempt.origin = origin;
       state.last[path] = origin;
       state.lastGood = path;
+      state.lostGrabs = 0;
+      if (path === "window") state.windowDecoded = true;
       const around = trackRect(origin, cap.size);
       const inside =
         around && clampCrop(around.x - rect.x, around.y - rect.y, around.width, around.height, image.width, image.height);
@@ -202,16 +238,20 @@ export async function readGame(
     }
     state.last[path] = null;
   }
+  if (!lost) state.lostGrabs = 1; // the grid was just lost: the next scan is FULL_SCAN_EVERY grabs away
   return { image: null, attempts };
 }
 
-async function cropImage(img: Image, rect: Rect): Promise<{ image: RawImage; png: () => Promise<Buffer> }> {
-  const cropped = await img.crop(rect.x, rect.y, rect.width, rect.height);
-  const buf = await cropped.toRaw();
+async function pixelsOf(img: Image): Promise<CapturedPixels> {
+  const buf = await img.toRaw();
   return {
-    image: { width: cropped.width, height: cropped.height, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) },
-    png: () => cropped.toPng(),
+    image: { width: img.width, height: img.height, data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) },
+    png: () => img.toPng(),
   };
+}
+
+async function cropImage(img: Image, rect: Rect): Promise<CapturedPixels> {
+  return pixelsOf(await img.crop(rect.x, rect.y, rect.width, rect.height));
 }
 
 /** Runs a diagnostics callback; a failing one must not break the read. */
@@ -274,14 +314,20 @@ export class WowWindowSource implements FrameSource {
       const monitor = win.currentMonitor();
       const monitorRect = { x: monitor.x(), y: monitor.y(), width: monitor.width(), height: monitor.height() };
 
-      const { image, attempts } = await readGame(async (path) => {
+      const { image, attempts, skipped } = await readGame(async (path) => {
         const full = path === "window" ? await win.captureImage() : await monitor.captureImage();
         const size = { width: full.width, height: full.height };
         safely(() =>
           this.onGeometry?.({ path, window: windowRect, monitor: monitorRect, image: size, scaleFactor: monitor.scaleFactor() }),
         );
-        return { size, full: gameRect(path, windowRect, monitorRect, size), crop: (rect) => cropImage(full, rect) };
+        return {
+          size,
+          full: gameRect(path, windowRect, monitorRect, size),
+          crop: (rect) => cropImage(full, rect),
+          whole: () => pixelsOf(full),
+        };
       }, this.state);
+      if (skipped) return null; // waiting for the next full scan of a lost grid: nothing was read, nothing to report
       const last = attempts[attempts.length - 1];
       if (!last) {
         safely(() => this.onDiagnostics?.({ stage: "no-image" }));

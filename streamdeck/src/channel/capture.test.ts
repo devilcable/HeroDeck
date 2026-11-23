@@ -5,6 +5,7 @@ import {
   clampCrop,
   cropRaw,
   gameRect,
+  FULL_SCAN_EVERY,
   type GameCapture,
   type GrabState,
   newGrabState,
@@ -173,6 +174,10 @@ function fakeCapture(
         log.push(`crop:${path}:${rect.x},${rect.y},${rect.width}x${rect.height}`);
         return { image: cropRaw(img, rect), png: async () => Buffer.from(`png:${path}`) };
       },
+      whole: async () => {
+        log.push(`whole:${path}`);
+        return { image: img, png: async () => Buffer.from(`png:${path}`) };
+      },
     };
   };
 }
@@ -187,7 +192,7 @@ function scene(seed: number, grid: { x: number; y: number } | null): RawImage {
 describe("readGame", () => {
   it("starts from a fresh state", () => {
     const s: GrabState = newGrabState();
-    expect(s).toEqual({ lastGood: null, last: { window: null, monitor: null } });
+    expect(s).toEqual({ lastGood: null, last: { window: null, monitor: null }, lostGrabs: 0, windowDecoded: false });
   });
 
   it("scans the whole game area first, and returns only the crop around the grid", async () => {
@@ -201,7 +206,7 @@ describe("readGame", () => {
     expect(image!.width).toBe(152);
     expect(image!.height).toBe(142);
     expect(readStrip(image!)?.fields).toEqual(expectedValues);
-    expect(log).toEqual(["capture:window", "crop:window:0,0,600x400"]);
+    expect(log).toEqual(["capture:window", "whole:window"]);
   });
 
   it("success stores the origin, in the capture's coordinates", async () => {
@@ -240,17 +245,19 @@ describe("readGame", () => {
     expect(state.last.window).toEqual({ x: 502, y: 42 });
   });
 
-  it("failure clears the last position, so the next grab is a full scan", async () => {
+  it("failure clears the last position, so the next scan is a full scan", async () => {
     const state = newGrabState();
     await readGame(fakeCapture({ window: scene(5, { x: 300, y: 200 }) }), state);
     const gone = await readGame(fakeCapture({ window: scene(5, null), monitor: scene(5, null) }), state);
     expect(gone.image).toBeNull();
+    // the window decoded before, so the monitor is not tried
     expect(gone.attempts.map((a) => [a.path, a.region, a.origin])).toEqual([
       ["window", "tracked", undefined],
       ["window", "full", undefined],
-      ["monitor", "full", undefined],
     ]);
     expect(state.last).toEqual({ window: null, monitor: null });
+    // the lost grid is scanned again only every FULL_SCAN_EVERY grabs
+    for (let i = 1; i < FULL_SCAN_EVERY; i++) await readGame(fakeCapture({ window: scene(5, null) }), state);
     const again = await readGame(fakeCapture({ window: scene(5, { x: 100, y: 100 }) }), state);
     expect(again.attempts.map((a) => a.region)).toEqual(["full"]);
   });
@@ -270,6 +277,69 @@ describe("readGame", () => {
     const second = await readGame(fakeCapture({ window: scene(6, null), monitor }, log, area), state);
     expect(second.attempts.map((a) => [a.path, a.region])).toEqual([["monitor", "tracked"]]);
     expect(log).toEqual(["capture:monitor", "crop:monitor:238,138,152x142"]);
+  });
+
+  it("a full scan of the whole capture does not copy it with crop", async () => {
+    const log: string[] = [];
+    await readGame(fakeCapture({ window: scene(8, { x: 300, y: 200 }) }, log), newGrabState());
+    expect(log.filter((l) => l.startsWith("crop"))).toEqual([]);
+    expect(log).toContain("whole:window");
+    // an area that is not the whole capture still goes through crop
+    log.length = 0;
+    const area = { window: { x: 10, y: 10, width: 500, height: 300 } };
+    await readGame(fakeCapture({ window: scene(8, { x: 300, y: 200 }) }, log, area), newGrabState());
+    expect(log).toEqual(["capture:window", "crop:window:10,10,500x300"]);
+  });
+
+  it("while the grid is lost, scans on grabs 1, 5, 9 and returns null without capturing in between", async () => {
+    const state = newGrabState();
+    const log: string[] = [];
+    const capture = fakeCapture({ window: scene(9, null), monitor: scene(9, null) }, log);
+    const captured: boolean[] = [];
+    for (let grab = 1; grab <= 9; grab++) {
+      log.length = 0;
+      const out = await readGame(capture, state);
+      expect(out.image).toBeNull();
+      captured.push(log.some((l) => l.startsWith("capture")));
+      if (!captured[grab - 1]) expect(out.attempts).toEqual([]);
+    }
+    expect(captured).toEqual([true, false, false, false, true, false, false, false, true]);
+  });
+
+  it("a decode resets the throttle: the next loss scans at once, then waits again", async () => {
+    const state = newGrabState();
+    const log: string[] = [];
+    const lostScene = { window: scene(10, null), monitor: scene(10, null) };
+    const seen = async (images: Partial<Record<CapturePath, RawImage>>) => {
+      log.length = 0;
+      const out = await readGame(fakeCapture(images, log), state);
+      return { out, captured: log.some((l) => l.startsWith("capture")) };
+    };
+    expect((await seen(lostScene)).captured).toBe(true); // 1: scan
+    for (let i = 2; i <= 4; i++) expect((await seen(lostScene)).captured).toBe(false);
+    const found = await seen({ window: scene(10, { x: 300, y: 200 }) }); // 5: scan, decodes
+    expect(found.out.image).not.toBeNull();
+    expect(state.lostGrabs).toBe(0);
+    expect((await seen(lostScene)).captured).toBe(true); // the grid vanished: tracked + full, at once
+    for (let i = 0; i < FULL_SCAN_EVERY - 1; i++) expect((await seen(lostScene)).captured).toBe(false);
+    expect((await seen(lostScene)).captured).toBe(true);
+  });
+
+  it("does not capture the monitor once the window path has decoded", async () => {
+    const state = newGrabState();
+    const log: string[] = [];
+    await readGame(fakeCapture({ window: scene(11, { x: 300, y: 200 }) }), state);
+    expect(state.windowDecoded).toBe(true);
+    const capture = fakeCapture({ window: scene(11, null), monitor: scene(11, null) }, log);
+    for (let grab = 0; grab < 10; grab++) await readGame(capture, state);
+    expect(log.filter((l) => l === "capture:window").length).toBeGreaterThan(0);
+    expect(log.filter((l) => l.includes("monitor"))).toEqual([]);
+  });
+
+  it("still tries the monitor while the window has never decoded", async () => {
+    const log: string[] = [];
+    await readGame(fakeCapture({ window: scene(12, null), monitor: scene(12, null) }, log), newGrabState());
+    expect(log.filter((l) => l.startsWith("capture"))).toEqual(["capture:window", "capture:monitor"]);
   });
 
   it("returns null and no attempt when there is nothing to crop", async () => {
@@ -426,17 +496,43 @@ describe("WowWindowSource capture path", () => {
   });
 
   it("goes back to the window when the remembered monitor path stops decoding", async () => {
-    const decodes = { window: true, monitor: false };
+    const decodes = { window: false, monitor: true };
     const { source, log } = await sourceWithFakes(decodes);
-    await source.grab(); // window decodes
-    decodes.window = false;
-    decodes.monitor = true;
     await source.grab(); // window fails, monitor works: now preferred
     log.length = 0;
     decodes.window = true;
     decodes.monitor = false;
-    await source.grab(); // monitor fails, window works again
+    await source.grab(); // monitor fails, window works
     expect(log).toEqual(["monitor", "window"]);
+  });
+
+  it("does not fall back to the monitor once the window has decoded", async () => {
+    const decodes = { window: true, monitor: true };
+    const { source, log } = await sourceWithFakes(decodes);
+    await source.grab(); // window decodes
+    decodes.window = false;
+    log.length = 0;
+    expect(await source.grab()).toBeNull(); // the window lost the grid; the monitor is not tried
+    expect(log).toEqual(["window"]);
+  });
+
+  it("does not capture while waiting between two full scans of a lost grid", async () => {
+    const { source, log } = await sourceWithFakes({ window: false, monitor: false });
+    await source.grab(); // scans both paths
+    log.length = 0;
+    for (let i = 1; i < FULL_SCAN_EVERY; i++) expect(await source.grab()).toBeNull();
+    expect(log).toEqual([]);
+    await source.grab();
+    expect(log).toEqual(["window", "monitor"]);
+  });
+
+  it("reports nothing to the diagnostics hook for a throttled grab", async () => {
+    const onDiagnostics = vi.fn();
+    const { source } = await sourceWithFakes({ window: false, monitor: false }, { onDiagnostics });
+    await source.grab();
+    onDiagnostics.mockClear();
+    await source.grab();
+    expect(onDiagnostics).not.toHaveBeenCalled();
   });
 });
 
