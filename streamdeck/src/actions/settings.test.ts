@@ -33,19 +33,8 @@ const EXPECTED_FR: Record<string, string> = {
   Item: "Pièce",
   "Most damaged": "La plus abîmée",
   "Show percentage": "Afficher le pourcentage",
-  "slot.head": "Tête",
-  "slot.shoulders": "Épaules",
-  "slot.chest": "Torse",
-  "slot.waist": "Taille",
-  "slot.legs": "Jambes",
-  "slot.feet": "Pieds",
-  "slot.wrists": "Poignets",
-  "slot.hands": "Mains",
-  "slot.mainhand": "Arme",
-  "slot.offhand": "Main G.",
-  "slot.ranged": "Distance",
-  "slot.empty": "vide",
-  "slot.none": "sans",
+  empty: "vide",
+  "n/a": "sans",
   Head: "Tête",
   Shoulders: "Épaules",
   Chest: "Torse",
@@ -63,19 +52,8 @@ const EXPECTED_EN: Record<string, string> = {
   Item: "Item",
   "Most damaged": "Most damaged",
   "Show percentage": "Show percentage",
-  "slot.head": "Head",
-  "slot.shoulders": "Shoulders",
-  "slot.chest": "Chest",
-  "slot.waist": "Waist",
-  "slot.legs": "Legs",
-  "slot.feet": "Feet",
-  "slot.wrists": "Wrists",
-  "slot.hands": "Hands",
-  "slot.mainhand": "Main hand",
-  "slot.offhand": "Off hand",
-  "slot.ranged": "Ranged",
-  "slot.empty": "empty",
-  "slot.none": "n/a",
+  empty: "empty",
+  "n/a": "n/a",
   Head: "Head",
   Shoulders: "Shoulders",
   Chest: "Chest",
@@ -95,6 +73,15 @@ describe("localization files", () => {
     expect(localization("fr")).toEqual(EXPECTED_FR);
   });
 
+  it("Localization is flat with dot-free keys (the SDK resolves a dotted key as a nested path)", () => {
+    for (const lang of ["en", "fr"] as const) {
+      for (const [key, value] of Object.entries(localization(lang))) {
+        expect(key, `key ${key}`).not.toContain(".");
+        expect(typeof value, `value of ${key}`).toBe("string");
+      }
+    }
+  });
+
   it("the property inspector only uses labels that are Localization keys", () => {
     const html = readFileSync(`${PLUGIN_DIR}ui/durability.html`, "utf8");
     const labels = [
@@ -105,6 +92,13 @@ describe("localization files", () => {
     for (const label of labels) {
       expect(Object.keys(EXPECTED_EN)).toContain(label);
     }
+  });
+
+  it("the property inspector keeps plain Localization texts, not __MSG_ strings", () => {
+    // sdpi-components v4 resolves __MSG_key__ only from SDPIComponents.i18n.locales, which it never loads from
+    // the plugin's <lang>.json; without that table it would show the raw "__MSG_key__" text.
+    const html = readFileSync(`${PLUGIN_DIR}ui/durability.html`, "utf8");
+    expect(html).not.toContain("__MSG_");
   });
 
   it("the property inspector offers the item values in order", () => {
