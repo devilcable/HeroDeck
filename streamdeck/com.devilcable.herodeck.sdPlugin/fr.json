@@ -1,9 +1,35 @@
 {
 	"com.devilcable.herodeck.durability": {
 		"Name": "Durabilité",
-		"Tooltip": "Durabilité de la pièce la plus abîmée"
+		"Tooltip": "Durabilité de la pièce la plus abîmée ou d'une pièce équipée"
 	},
 	"Localization": {
-		"Show percentage": "Afficher le pourcentage"
+		"Item": "Pièce",
+		"Most damaged": "La plus abîmée",
+		"Show percentage": "Afficher le pourcentage",
+		"slot.head": "Tête",
+		"slot.shoulders": "Épaules",
+		"slot.chest": "Torse",
+		"slot.waist": "Taille",
+		"slot.legs": "Jambes",
+		"slot.feet": "Pieds",
+		"slot.wrists": "Poignets",
+		"slot.hands": "Mains",
+		"slot.mainhand": "Arme",
+		"slot.offhand": "Main G.",
+		"slot.ranged": "Distance",
+		"slot.empty": "vide",
+		"slot.none": "sans",
+		"Head": "Tête",
+		"Shoulders": "Épaules",
+		"Chest": "Torse",
+		"Waist": "Taille",
+		"Legs": "Jambes",
+		"Feet": "Pieds",
+		"Wrists": "Poignets",
+		"Hands": "Mains",
+		"Main hand": "Arme",
+		"Off hand": "Main G.",
+		"Ranged": "Distance"
 	}
 }

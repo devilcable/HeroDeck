@@ -7,7 +7,7 @@
 			"Name": "Durability",
 			"UUID": "com.devilcable.herodeck.durability",
 			"Icon": "imgs/actions/durability/icon",
-			"Tooltip": "Durability of your most damaged item",
+			"Tooltip": "Durability of your most damaged item or of one equipped item",
 			"PropertyInspectorPath": "ui/durability.html",
 			"Controllers": [
 				"Keypad"
