@@ -155,6 +155,19 @@ describe("SlotTable", () => {
     expect(table.value("head")).toBe(11);
   });
 
+  it("hasData is true while any slot has a fresh value", () => {
+    const { table, advance } = makeTable();
+    expect(table.hasData()).toBe(false);
+    table.update(frame(0, 70, 255, 255));
+    expect(table.hasData()).toBe(true);
+    advance(3100); // stalled
+    expect(table.hasData()).toBe(false);
+    table.update(frame(1, 255, 255, 255)); // page moves again but carries nothing
+    expect(table.hasData()).toBe(true); // head is still within its TTL
+    table.clear();
+    expect(table.hasData()).toBe(false);
+  });
+
   it("clear() empties the table", () => {
     const { table } = makeTable();
     table.update(frame(0, 70, 60, 50));

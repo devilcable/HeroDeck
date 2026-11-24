@@ -83,6 +83,11 @@ export class SlotTable {
     return entry.value;
   }
 
+  /** True while at least one slot has a value (not stalled, not expired). */
+  hasData(): boolean {
+    return SLOT_KEYS.some((slot) => this.value(slot) !== null);
+  }
+
   clear(): void {
     this.entries.clear();
     this.lastPage = null;

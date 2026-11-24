@@ -7,6 +7,7 @@ import streamDeck, {
   type WillDisappearEvent,
 } from "@elgato/streamdeck";
 import type { ChannelFrame, ChannelReader } from "../channel/reader";
+import { trackSlots } from "../durability/slot-log";
 import { SlotTable } from "../durability/slots";
 import { diffView, type KeyView } from "../durability/view";
 import { keyViewFor } from "./key-view";
@@ -30,6 +31,8 @@ export class DurabilityAction extends SingletonAction<Settings> {
   private readonly keys = new Map<string, KeyState>();
   /** Slot durabilities rebuilt from the rotating pages, shared by every key of this action. */
   private readonly table = new SlotTable();
+  /** Whether the table held fresh data at the last check, to log a change once. */
+  private slotsFresh = false;
 
   constructor(private readonly reader: ChannelReader) {
     super();
@@ -52,6 +55,7 @@ export class DurabilityAction extends SingletonAction<Settings> {
       state.frame = frame;
       // Idempotent for a frame already seen, so every key may feed the table.
       this.table.update(frame);
+      this.logSlots();
       this.render(state);
     });
   }
@@ -59,7 +63,10 @@ export class DurabilityAction extends SingletonAction<Settings> {
   override onWillDisappear(ev: WillDisappearEvent<Settings>): void {
     this.keys.get(ev.action.id)?.unsubscribe();
     this.keys.delete(ev.action.id);
-    if (this.keys.size === 0) this.table.clear();
+    if (this.keys.size === 0) {
+      this.table.clear();
+      this.slotsFresh = false;
+    }
   }
 
   override onDidReceiveSettings(ev: DidReceiveSettingsEvent<Settings>): void {
@@ -67,6 +74,14 @@ export class DurabilityAction extends SingletonAction<Settings> {
     if (!state) return;
     state.settings = settingsFrom(ev.payload.settings);
     this.render(state);
+  }
+
+  /** Logs once when the slot data is lost or back, only while a specific-item key is visible. */
+  private logSlots(): void {
+    const watching = [...this.keys.values()].some((state) => state.settings.item !== "lowest");
+    const next = trackSlots(this.slotsFresh, this.table.hasData(), watching);
+    this.slotsFresh = next.fresh;
+    if (next.message) logger.info(next.message);
   }
 
   /** Sends only the part of the view that changed since the last render of this key. */
