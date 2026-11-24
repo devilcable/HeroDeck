@@ -50,6 +50,7 @@ frame:SetScript("OnEvent", function(_, event)
     ns.Channel:Init(ns.MinimapButton.frame)
     ns.MinimapButton:Place(ns.MinimapButton.SavedAngle())
     ns.Channel:Register(Durability.FIELD)
+    ns.Slots:Start()
     ready = true
   end
   if ready then

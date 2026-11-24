@@ -10,4 +10,5 @@ Core/Init.lua
 Core/Codec.lua
 Core/Channel.lua
 Core/MinimapButton.lua
+Modules/Slots.lua
 Modules/Durability.lua
