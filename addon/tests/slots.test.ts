@@ -196,6 +196,21 @@ describe("Slots:Start", () => {
     );
   });
 
+  it("recomputes from the current gear each time a page is shown", async () => {
+    const inventory: Inventory = { 1: [10, 87, 100], 3: [11, 50, 100] };
+    await withAddon(async (lua) => {
+      await lua.doString(INIT_AND_START);
+      await tick(lua); // page 0
+      expect((await fieldBytes(lua)).slice(0, 3)).toEqual([0, 87, 50]);
+      // gear changes while the other pages are shown: head worn down, shoulders unequipped
+      inventory[1] = [10, 12, 100];
+      delete inventory[3];
+      for (let i = 0; i < 3; i++) await tick(lua); // pages 1, 2, 3
+      await tick(lua); // page 0 again
+      expect((await fieldBytes(lua)).slice(0, 3)).toEqual([0, 12, 254]);
+    }, inventory);
+  });
+
   it("Start twice creates one ticker", async () => {
     await withAddon(async (lua) => {
       await lua.doString(INIT_AND_START);
