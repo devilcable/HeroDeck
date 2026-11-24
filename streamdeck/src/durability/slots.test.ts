@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PAGE_SLOTS, SLOT_KEYS, SlotTable, STALL_MS, VALUE_TTL_MS } from "./slots";
+import { PAGE_SLOTS, SLOT_KEYS, type SlotKey, SlotTable, STALL_MS, VALUE_TTL_MS } from "./slots";
 
 /** A frame as the reader emits it: field 0 = lowest percent, 1 = page, 2-4 = slot values. */
 const frame = (page: number | null, a: number | null, b: number | null, c: number | null) => ({
@@ -160,5 +160,61 @@ describe("SlotTable", () => {
     table.update(frame(0, 70, 60, 50));
     table.clear();
     expect(table.value("head")).toBeNull();
+  });
+});
+
+/** Small seeded PRNG (mulberry32) so the cadence simulation is reproducible. */
+function seeded(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe("SlotTable with the real cadence", () => {
+  it.each([1, 2, 3, 42, 1234])("never flickers to no data over 60 s (seed %i)", (seed) => {
+    const rand = seeded(seed);
+    // Addon: the page advances every 1000-1030 ms, starting at t = 0 (page 0 first).
+    const tickTimes: number[] = [];
+    for (let t = 0; t <= 61_000; t += 1000 + rand() * 30) tickTimes.push(t);
+    const pageAt = (t: number): number => {
+      let n = 0;
+      while (n < tickTimes.length && tickTimes[n] <= t) n++;
+      return (n - 1) % PAGE_SLOTS.length;
+    };
+    // Plugin: a read every 500 ms with a random phase and +-100 ms jitter.
+    const reads: number[] = [];
+    for (let t = rand() * 500; t <= 60_000; t += 500 + (rand() * 200 - 100)) reads.push(t);
+    // A few single failed reads once the first cycle is over: nothing is delivered for them.
+    const failed = new Set<number>();
+    while (failed.size < 4) failed.add(10 + Math.floor(rand() * (reads.length - 12)));
+
+    let now = 0;
+    const table = new SlotTable(() => now);
+    const value = (slot: SlotKey) => 10 + SLOT_KEYS.indexOf(slot);
+    const frameAt = (page: number) => ({
+      fields: [50, page, ...PAGE_SLOTS[page].map((s) => (s === null ? 255 : value(s)))],
+    });
+
+    const cycleDone = 5_000;
+    let checked = 0;
+    let readIndex = 0;
+    for (let t = 0; t <= 60_000; t += 50) {
+      while (readIndex < reads.length && reads[readIndex] <= t) {
+        now = reads[readIndex];
+        if (!failed.has(readIndex)) table.update(frameAt(pageAt(now)));
+        readIndex++;
+      }
+      now = t;
+      if (t < cycleDone) continue;
+      for (const slot of SLOT_KEYS) {
+        expect(table.value(slot), `${slot} at ${t} ms`).toBe(value(slot));
+      }
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(1000);
   });
 });
