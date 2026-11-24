@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffView, imageFor, percentFrom, stateFor, titleFor, viewFor } from "./view";
+import { diffView, imageFor, percentFrom, slotViewFor, stateFor, titleFor, viewFor } from "./view";
 
 describe("percentFrom", () => {
   it("is null for a nodata frame", () => {
@@ -84,5 +84,56 @@ describe("diffView", () => {
   it("sets only the image when only the image changed", () => {
     const warn = { image: "imgs/actions/durability/warn.svg", title: "87%" };
     expect(diffView(a, warn)).toEqual({ image: warn.image });
+  });
+});
+
+describe("slotViewFor", () => {
+  const fr = (key: "empty" | "none") => (key === "empty" ? "vide" : "sans");
+  const en = (key: "empty" | "none") => (key === "empty" ? "empty" : "n/a");
+
+  it("shows the label and the percent", () => {
+    expect(slotViewFor(87, "Arme", true, fr)).toEqual({ image: "imgs/actions/durability/ok.svg", title: "Arme\n87%" });
+  });
+
+  it("drops only the percent when the percentage is off", () => {
+    expect(slotViewFor(87, "Arme", false, fr)).toEqual({ image: "imgs/actions/durability/ok.svg", title: "Arme" });
+  });
+
+  it("empty slot: nodata image and translated word", () => {
+    expect(slotViewFor("empty", "Main G.", true, fr)).toEqual({
+      image: "imgs/actions/durability/nodata.svg",
+      title: "Main G.\nvide",
+    });
+    expect(slotViewFor("empty", "Off hand", true, en).title).toBe("Off hand\nempty");
+  });
+
+  it("item without durability: nodata image and translated word", () => {
+    expect(slotViewFor("none", "Main G.", true, fr)).toEqual({
+      image: "imgs/actions/durability/nodata.svg",
+      title: "Main G.\nsans",
+    });
+    expect(slotViewFor("none", "Off hand", true, en).title).toBe("Off hand\nn/a");
+  });
+
+  it("status words stay when the percentage is off", () => {
+    expect(slotViewFor("empty", "Main G.", false, fr).title).toBe("Main G.\nvide");
+    expect(slotViewFor("none", "Main G.", false, fr).title).toBe("Main G.\nsans");
+  });
+
+  it("no data shows --", () => {
+    expect(slotViewFor(null, "Arme", true, fr)).toEqual({
+      image: "imgs/actions/durability/nodata.svg",
+      title: "Arme\n--",
+    });
+  });
+
+  it.each([
+    [50, "ok"],
+    [49, "warn"],
+    [20, "warn"],
+    [19, "critical"],
+    [0, "critical"],
+  ] as const)("%s percent uses the %s image", (percent, state) => {
+    expect(slotViewFor(percent, "X", true, fr).image).toBe(`imgs/actions/durability/${state}.svg`);
   });
 });
