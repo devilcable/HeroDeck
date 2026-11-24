@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            streamdeck/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install plugin dependencies
+        run: npm ci
+        working-directory: streamdeck
+
+      - name: Tests (addon Lua, plugin TypeScript, cross-component)
+        run: npm test
+
+      - name: Typecheck plugin
+        run: npx tsc --noEmit
+        working-directory: streamdeck
+
+      - name: Build plugin
+        run: npm run build
+        working-directory: streamdeck
+
+      - name: Validate plugin
+        run: npx streamdeck validate com.devilcable.herodeck.sdPlugin
+        working-directory: streamdeck

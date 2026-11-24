@@ -1,0 +1,28 @@
+{
+	"name": "herodeck-streamdeck",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "rollup -c",
+		"probe": "tsx scripts/probe.ts",
+		"postbuild": "npm install --omit=dev --prefix com.devilcable.herodeck.sdPlugin",
+		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.devilcable.herodeck\""
+	},
+	"dependencies": {
+		"@elgato/streamdeck": "3.0.4",
+		"node-screenshots": "0.2.8"
+	},
+	"devDependencies": {
+		"@elgato/cli": "1.10.4",
+		"@rollup/plugin-commonjs": "29.0.3",
+		"@rollup/plugin-node-resolve": "15.3.1",
+		"@rollup/plugin-terser": "1.0.2",
+		"@rollup/plugin-typescript": "12.3.1",
+		"@tsconfig/node20": "20.1.11",
+		"@types/node": "24.1.0",
+		"rollup": "4.68.6",
+		"tslib": "2.9.1",
+		"tsx": "4.23.15",
+		"typescript": "5.9.3"
+	}
+}

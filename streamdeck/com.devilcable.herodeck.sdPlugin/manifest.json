@@ -1,0 +1,43 @@
+{
+	"Name": "HeroDeck",
+	"Version": "0.1.0.0",
+	"Author": "devilcable",
+	"Actions": [
+		{
+			"Name": "Durability",
+			"UUID": "com.devilcable.herodeck.durability",
+			"Icon": "imgs/actions/durability/icon",
+			"Tooltip": "Durability of your most damaged item or of one equipped item",
+			"PropertyInspectorPath": "ui/durability.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/durability/nodata",
+					"TitleAlignment": "bottom",
+					"ShowTitle": true
+				}
+			]
+		}
+	],
+	"Category": "HeroDeck",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"Description": "Shows your World of Warcraft Forever character data on Stream Deck keys.",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "24"
+	},
+	"UUID": "com.devilcable.herodeck"
+}
