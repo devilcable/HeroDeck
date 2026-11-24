@@ -1,4 +1,5 @@
 import type { ChannelFrame } from "../channel/reader";
+import type { SlotValue } from "./slots";
 
 export type DurabilityState = "ok" | "warn" | "critical" | "nodata";
 
@@ -32,6 +33,23 @@ export function titleFor(percent: number | null, showPercent: boolean): string {
 export function viewFor(frame: ChannelFrame, showPercent: boolean): KeyView {
   const percent = percentFrom(frame);
   return { image: imageFor(stateFor(percent)), title: titleFor(percent, showPercent) };
+}
+
+/**
+ * View of a key that follows one equipped item: `label` on line 1, then the percent, a status word or `--`.
+ * With `showPercent` off only the percent is dropped; the status words stay.
+ */
+export function slotViewFor(
+  value: SlotValue,
+  label: string,
+  showPercent: boolean,
+  t: (key: "empty" | "none") => string,
+): KeyView {
+  if (typeof value === "number") {
+    return { image: imageFor(stateFor(value)), title: showPercent ? `${label}\n${value}%` : label };
+  }
+  const word = value === "empty" ? t("empty") : value === "none" ? t("none") : "--";
+  return { image: imageFor("nodata"), title: `${label}\n${word}` };
 }
 
 /** What must be sent to the key to go from `prev` (undefined before the first render) to `next`. */

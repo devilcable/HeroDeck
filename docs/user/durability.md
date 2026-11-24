@@ -23,6 +23,32 @@ With no item that has durability (nothing equipped), the key shows 100 %.
 
 The key updates about once a second after your gear changes (damage, repair, equip, unequip).
 
+### One specific item
+
+A key can show **one equipped item** instead of the most damaged one: pick it in the key's **Item** setting
+(see [Options](#options)). The key then shows the item's short name on the first line and its durability
+below, with the same colors:
+
+| Setting | Name on the key (EN / FR) |
+|---|---|
+| Head | Head / Tête |
+| Shoulders | Shoulders / Épaules |
+| Chest | Chest / Torse |
+| Waist | Waist / Taille |
+| Legs | Legs / Jambes |
+| Feet | Feet / Pieds |
+| Wrists | Wrists / Poignets |
+| Hands | Hands / Mains |
+| Main hand | Main hand / Arme |
+| Off hand | Off hand / Main G. |
+| Ranged | Ranged / Distance |
+
+- **`empty`** (`vide`): nothing is equipped in that slot (e.g. the off hand with a two-handed weapon).
+- **`n/a`** (`sans`): the item there has no durability (e.g. an item held in the off hand).
+- **`--`**: no data yet. The addon sends the items in turn, three at a time, one group per second, so a
+  specific-item key needs **up to about 4 seconds** to show its value when it first appears, and follows a
+  change (damage, repair) within about 4 seconds. The "most damaged" key is not delayed.
+
 ## Install
 
 Requirements: Windows 10/11, Stream Deck app 7.1 or newer, WoW Forever in **windowed** or **windowed
@@ -70,7 +96,11 @@ In the Stream Deck app, open the **HeroDeck** category in the action list and dr
 
 Select the key in the Stream Deck app to see its settings:
 
-- **Show percentage** (default: on). Turn it off to see only the colored icon.
+- **Item** (default: **Most damaged**). Choose **Most damaged**, or one of the 11 items above to follow
+  that item only. (The settings panel is in English; the text on the key follows the Stream Deck
+  language.)
+- **Show percentage** (default: on). Turn it off to see only the colored icon. On a specific-item key the
+  item name and the `empty` / `n/a` / `--` words stay; only the percentage is hidden.
 
 ## The HeroDeck minimap button
 

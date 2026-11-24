@@ -25,7 +25,7 @@ export const ADDON_FILES: string[] = readFileSync(join(ADDON_DIR, "HeroDeck.toc"
  * points, textures (creation order).
  * Globals: Minimap (140 wide, center 1000,500), __cursor / GetCursorPosition, __locale /
  * GetLocale, GameTooltip (owner, anchor, lines, shown), SlashCmdList = {}, print captured
- * in __printed. Frames answer GetWidth / GetHeight; textures record texturePath (SetTexture).
+ * in __printed, C_Timer.NewTicker records tickers in __tickers. Frames answer GetWidth / GetHeight; textures record texturePath (SetTexture).
  * Settable per frame by tests: center = {x, y} (returned by GetCenter, nil when unset) and
  * effectiveScale (returned by GetEffectiveScale; when unset: parent effective scale x the SetScale
  * value for a scaled child that does not ignore its parent's scale, else 1); GetFrameLevel returns
@@ -161,6 +161,18 @@ const LUA_DEFAULTS = `
 
   SlashCmdList = {}
 
+  -- C_Timer.NewTicker records each ticker in __tickers (seconds, callback, cancelled); tests
+  -- simulate a tick by calling ticker.callback(ticker). The handle has Cancel().
+  __tickers = {}
+  C_Timer = {
+    NewTicker = function(seconds, callback)
+      local ticker = { seconds = seconds, callback = callback, cancelled = false }
+      function ticker:Cancel() self.cancelled = true end
+      __tickers[#__tickers + 1] = ticker
+      return ticker
+    end,
+  }
+
   -- print records its output in __printed (tostring of the arguments joined by a space).
   __printed = {}
   print = function(...)
@@ -175,6 +187,7 @@ function jsDefaults(): Record<string, unknown> {
   return {
     GetPhysicalScreenSize: () => LuaMultiReturn.of(1920, 1080),
     GetInventoryItemDurability: () => undefined,
+    GetInventoryItemID: () => undefined,
   };
 }
 

@@ -1,9 +1,24 @@
 {
 	"com.devilcable.herodeck.durability": {
 		"Name": "Durability",
-		"Tooltip": "Durability of your most damaged item"
+		"Tooltip": "Durability of your most damaged item or of one equipped item"
 	},
 	"Localization": {
-		"Show percentage": "Show percentage"
+		"Item": "Item",
+		"Most damaged": "Most damaged",
+		"Show percentage": "Show percentage",
+		"empty": "empty",
+		"n/a": "n/a",
+		"Head": "Head",
+		"Shoulders": "Shoulders",
+		"Chest": "Chest",
+		"Waist": "Waist",
+		"Legs": "Legs",
+		"Feet": "Feet",
+		"Wrists": "Wrists",
+		"Hands": "Hands",
+		"Main hand": "Main hand",
+		"Off hand": "Off hand",
+		"Ranged": "Ranged"
 	}
 }

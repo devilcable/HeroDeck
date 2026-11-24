@@ -41,12 +41,13 @@ const SPY_LAYOUT = `
 `;
 
 describe("toc", () => {
-  it("loads Init, Codec, Channel, MinimapButton, Durability in that order", () => {
+  it("loads Init, Codec, Channel, MinimapButton, Slots, Durability in that order", () => {
     expect(ADDON_FILES).toEqual([
       "Core/Init.lua",
       "Core/Codec.lua",
       "Core/Channel.lua",
       "Core/MinimapButton.lua",
+      "Modules/Slots.lua",
       "Modules/Durability.lua",
     ]);
   });

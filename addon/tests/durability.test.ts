@@ -178,10 +178,23 @@ describe("Durability events", () => {
         spy(ns.Channel, "Init", "channel init")
         spy(ns.MinimapButton, "Place", "place")
         spy(ns.Channel, "Register", "register")
+        spy(ns.Slots, "Start", "slots start")
         spy(ns.Durability, "Update", "update")
       `);
       await fire(lua, "PLAYER_LOGIN");
-      expect(await lua.doString("return __log")).toEqual(["button init", "channel init", "place", "register", "update"]);
+      // Slots:Start registers its own four fields (the four "register" entries after "slots start").
+      expect(await lua.doString("return __log")).toEqual([
+        "button init",
+        "channel init",
+        "place",
+        "register",
+        "slots start",
+        "register",
+        "register",
+        "register",
+        "register",
+        "update",
+      ]);
     });
   });
 
