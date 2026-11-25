@@ -76,9 +76,14 @@ The same item at each durability level:
 Requirements: Windows 10/11, Stream Deck app 7.1 or newer, WoW Forever in **windowed** or **windowed
 (fullscreen)** mode.
 
+Download both files of the latest version from the
+[Releases](https://github.com/devilcable/HeroDeck/releases) page: `HeroDeck-addon-<version>.zip` (the
+addon) and `com.devilcable.herodeck.streamDeckPlugin` (the plugin).
+
 ### 1. The addon
 
-Copy the `addon/HeroDeck` folder into the game's AddOns folder, so that you get:
+Unzip `HeroDeck-addon-<version>.zip` into the game's AddOns folder (or, from the repo, copy the
+`addon/HeroDeck` folder there), so that you get:
 
 ```
 <WoW folder>\_forever_\Interface\AddOns\HeroDeck\HeroDeck.toc
@@ -97,7 +102,9 @@ marked out of date, tick **Load out of date AddOns**.
 
 ### 2. The plugin
 
-Build and link it from the repo:
+Double-click `com.devilcable.herodeck.streamDeckPlugin` and accept the install in the Stream Deck app.
+
+Developers can build and link it from the repo instead:
 
 ```bash
 cd streamdeck
@@ -106,7 +113,7 @@ npm run build
 npx streamdeck link com.devilcable.herodeck.sdPlugin
 ```
 
-Then **quit the Stream Deck app completely and start it again** (a new plugin is only found when the app
+After linking, **quit the Stream Deck app completely and start it again** (a new plugin is only found when the app
 starts).
 
 ### 3. The key
