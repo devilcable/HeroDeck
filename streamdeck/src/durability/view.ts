@@ -1,5 +1,5 @@
 import type { ChannelFrame } from "../channel/reader";
-import type { SlotValue } from "./slots";
+import type { SlotKey, SlotValue } from "./slots";
 
 export type DurabilityState = "ok" | "warn" | "critical" | "nodata";
 
@@ -21,8 +21,9 @@ export function stateFor(percent: number | null): DurabilityState {
   return "critical";
 }
 
-export function imageFor(state: DurabilityState): string {
-  return `imgs/actions/durability/${state}.svg`;
+/** The slot's drawing in the state's colors, or the generic armor without a slot. */
+export function imageFor(state: DurabilityState, slot?: SlotKey | null): string {
+  return slot ? `imgs/actions/durability/${slot}/${state}.svg` : `imgs/actions/durability/${state}.svg`;
 }
 
 export function titleFor(percent: number | null, showPercent: boolean): string {
@@ -30,9 +31,11 @@ export function titleFor(percent: number | null, showPercent: boolean): string {
   return percent === null ? "--" : `${percent}%`;
 }
 
-export function viewFor(frame: ChannelFrame, showPercent: boolean): KeyView {
+/** View of the most damaged item: field 0's percent, drawn as `slot` (generic armor without one, or for no data). */
+export function viewFor(frame: ChannelFrame, showPercent: boolean, slot?: SlotKey | null): KeyView {
   const percent = percentFrom(frame);
-  return { image: imageFor(stateFor(percent)), title: titleFor(percent, showPercent) };
+  const state = stateFor(percent);
+  return { image: imageFor(state, state === "nodata" ? null : slot), title: titleFor(percent, showPercent) };
 }
 
 /**
@@ -41,15 +44,16 @@ export function viewFor(frame: ChannelFrame, showPercent: boolean): KeyView {
  */
 export function slotViewFor(
   value: SlotValue,
+  slot: SlotKey,
   label: string,
   showPercent: boolean,
   t: (key: "empty" | "none") => string,
 ): KeyView {
   if (typeof value === "number") {
-    return { image: imageFor(stateFor(value)), title: showPercent ? `${label}\n${value}%` : label };
+    return { image: imageFor(stateFor(value), slot), title: showPercent ? `${label}\n${value}%` : label };
   }
   const word = value === "empty" ? t("empty") : value === "none" ? t("none") : "--";
-  return { image: imageFor("nodata"), title: `${label}\n${word}` };
+  return { image: imageFor("nodata", slot), title: `${label}\n${word}` };
 }
 
 /** What must be sent to the key to go from `prev` (undefined before the first render) to `next`. */
