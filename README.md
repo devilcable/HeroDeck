@@ -156,3 +156,9 @@ Organisation du dépôt, protocole et règles de travail : [CLAUDE.md](CLAUDE.md
    `addon/HeroDeck/HeroDeck.toc` (`x.y.z`). Un test vérifie qu'elles sont égales.
 2. `npm run package` sous Windows. La CI produit aussi les deux fichiers (artefact `herodeck-packages`).
 3. Fusionner `develop` dans `main`, puis créer la release GitHub `vx.y.z` avec les deux fichiers de `dist/`.
+
+## Licence
+
+HeroDeck est distribué sous licence [MIT](LICENSE). Le plugin embarque des bibliothèques tierces qui gardent
+leur propre licence, par exemple `sdpi-components` (Corsair Memory Inc.) dans
+`streamdeck/com.devilcable.herodeck.sdPlugin/ui/`.
