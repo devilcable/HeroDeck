@@ -22,8 +22,9 @@ With no item that has durability (nothing equipped), the key shows 100 %.
 | no data | grey, `--` |
 
 The icon shows **the most damaged item**: a helmet when it is your head, a sword when it is your main hand,
-and so on. Until the addon has sent every item once (a few seconds after the key appears or the data comes
-back), and when the key is grey, it shows the generic armor.
+and so on. It shows the generic armor instead when nothing is damaged (100 %), when the key is grey, and for
+a few seconds after the key appears or a new item becomes the most damaged (the addon sends the items in
+turn, see below).
 
 The key updates about once a second after your gear changes (damage, repair, equip, unequip).
 

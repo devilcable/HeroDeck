@@ -232,35 +232,41 @@ describe("SlotTable with the real cadence", () => {
   });
 });
 
-describe("SlotTable.lowest", () => {
-  it("is the slot with the smallest percent", () => {
+describe("SlotTable.slotWith", () => {
+  it("is the slot holding that percent", () => {
     const { table } = makeTable();
     table.update(frame(1, 80, 12, 50));
-    expect(table.lowest()).toBe("legs");
+    expect(table.slotWith(12)).toBe("legs");
   });
 
-  it("goes to the first slot in SLOT_KEYS order on a tie", () => {
+  it("goes to the first slot in SLOT_KEYS order when several hold it", () => {
     const { table, advance } = makeTable();
     table.update(frame(1, 80, 12, 50));
     advance(1000);
     table.update(frame(0, 12, 90, 90));
-    expect(table.lowest()).toBe("head");
+    expect(table.slotWith(12)).toBe("head");
+  });
+
+  it("is null when no slot holds that percent (table not caught up yet)", () => {
+    const { table } = makeTable();
+    table.update(frame(0, 60, 70, 80));
+    expect(table.slotWith(12)).toBeNull();
   });
 
   it("is null on a fresh table", () => {
-    expect(makeTable().table.lowest()).toBeNull();
+    expect(makeTable().table.slotWith(12)).toBeNull();
   });
 
-  it("is null when only empty slots and items without durability were seen", () => {
+  it("never matches empty slots or items without durability", () => {
     const { table } = makeTable();
     table.update(frame(3, 254, 253, 255));
-    expect(table.lowest()).toBeNull();
+    for (const percent of [0, 100, 253, 254, 255]) expect(table.slotWith(percent)).toBeNull();
   });
 
   it("is null once the page stalls", () => {
     const { table, advance } = makeTable();
     table.update(frame(1, 80, 12, 50));
     advance(STALL_MS + 1);
-    expect(table.lowest()).toBeNull();
+    expect(table.slotWith(12)).toBeNull();
   });
 });

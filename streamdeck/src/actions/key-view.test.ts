@@ -66,6 +66,19 @@ describe("keyViewFor", () => {
     expect(view).toEqual({ image: "imgs/actions/durability/feet/critical.svg", title: "12%" });
   });
 
+  it("draws the generic armor on a lowest key when nothing is damaged", () => {
+    const table = tableWith({ fields: [100, 0, 100, 100, 100] });
+    const view = keyViewFor({ showPercent: true, item: "lowest" }, { fields: [100, 0, 100, 100, 100] }, table, translate);
+    expect(view).toEqual({ image: "imgs/actions/durability/ok.svg", title: "100%" });
+  });
+
+  it("draws the generic armor on a lowest key while no seen slot holds the live percent", () => {
+    // Only page 0 has arrived (head 60 %); the 12 % item is elsewhere.
+    const table = tableWith({ fields: [12, 0, 60, 70, 80] });
+    const view = keyViewFor({ showPercent: true, item: "lowest" }, { fields: [12, 0, 60, 70, 80] }, table, translate);
+    expect(view.image).toBe("imgs/actions/durability/critical.svg");
+  });
+
   it("draws the generic armor on a lowest key while the table has no item", () => {
     const frame = { fields: [42, null, null, null, null] };
     const view = keyViewFor({ showPercent: true, item: "lowest" }, frame, new SlotTable(() => 0), translate);

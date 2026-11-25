@@ -58,9 +58,11 @@ critical / no data).
   with a slot, `imgs/actions/durability/<state>.svg` without.
   - Specific-item key: its slot's silhouette; "empty", "n/a" and no data use the slot's nodata (gray)
     image, as today but with the slot drawing.
-  - "Most damaged" key: percent and state from field 0 (unchanged). Drawing = slot with the lowest numeric
-    value in the `SlotTable`; ties go to the first slot in `SLOT_KEYS` order. No numeric value in the table,
-    or field 0 is no data → generic armor.
+  - "Most damaged" key: percent and state from field 0 (unchanged). Drawing = first slot in `SLOT_KEYS` order
+    whose `SlotTable` value equals field 0's percent exactly (`SlotTable.slotWith`), so the drawing never
+    contradicts the shown percent. Field 0 at 100 % (nothing damaged), no slot holding that percent yet, or
+    field 0 no data → generic armor. (Changed after the branch review: "lowest table value" showed a helmet
+    at 100 % and could name a stale slot for a few seconds.)
 - **Silhouettes**: simple flat shapes in the style of the current armor, 144×144, readable at key size:
   Head helmet, Shoulders pauldrons, Chest the current armor, Waist belt with buckle, Legs greaves,
   Feet boots, Wrists bracer, Hands gauntlet, Main hand sword, Off hand shield, Ranged bow.

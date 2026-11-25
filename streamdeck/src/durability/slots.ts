@@ -83,18 +83,12 @@ export class SlotTable {
     return entry.value;
   }
 
-  /** Slot with the smallest fresh percent; ties go to the first slot in SLOT_KEYS order. Null when none has a percent. */
-  lowest(): SlotKey | null {
-    let best: SlotKey | null = null;
-    let bestValue = Infinity;
-    for (const slot of SLOT_KEYS) {
-      const value = this.value(slot);
-      if (typeof value === "number" && value < bestValue) {
-        best = slot;
-        bestValue = value;
-      }
-    }
-    return best;
+  /**
+   * First slot (SLOT_KEYS order) whose fresh value is exactly `percent`; null when none is. Both sides round the
+   * same way in the addon, so a fresh slot value equals field 0's percent exactly.
+   */
+  slotWith(percent: number): SlotKey | null {
+    return SLOT_KEYS.find((slot) => this.value(slot) === percent) ?? null;
   }
 
   /** True while at least one slot has a value (not stalled, not expired). */
