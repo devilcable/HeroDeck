@@ -7,7 +7,7 @@ It needs two parts: the **HeroDeck addon** in the game and the **HeroDeck plugin
 
 ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/ok.svg)
 
-- A small armor icon whose **background color** tells you when to repair.
+- A small icon of the item whose **background color** tells you when to repair (see [Icons](#icons)).
 - The **percentage** below the icon (you can hide it, see [Options](#options)).
 
 The value is the durability of your **most damaged equipped item**, not the average: if your weapon is at
@@ -21,13 +21,17 @@ With no item that has durability (nothing equipped), the key shows 100 %.
 | 0 % – 19 % | red |
 | no data | grey, `--` |
 
+The icon shows **the most damaged item**: a helmet when it is your head, a sword when it is your main hand,
+and so on. Until the addon has sent every item once (a few seconds after the key appears or the data comes
+back), and when the key is grey, it shows the generic armor.
+
 The key updates about once a second after your gear changes (damage, repair, equip, unequip).
 
 ### One specific item
 
 A key can show **one equipped item** instead of the most damaged one: pick it in the key's **Item** setting
 (see [Options](#options)). The key then shows the item's short name on the first line and its durability
-below, with the same colors:
+below, with the same colors, on that item's icon (grey when `empty`, `n/a` or `--`):
 
 | Setting | Name on the key (EN / FR) |
 |---|---|
@@ -48,6 +52,23 @@ below, with the same colors:
 - **`--`**: no data yet. The addon sends the items in turn, three at a time, one group per second, so a
   specific-item key needs **up to about 4 seconds** to show its value when it first appears, and follows a
   change (damage, repair) within about 4 seconds. The "most damaged" key is not delayed.
+
+### Icons
+
+Each item has its own drawing; the background color follows the durability as above.
+
+| | | | |
+|---|---|---|---|
+| ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/head/ok.svg) Head | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/shoulders/ok.svg) Shoulders | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/chest/ok.svg) Chest | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/waist/ok.svg) Waist |
+| ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/legs/ok.svg) Legs | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/feet/ok.svg) Feet | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/wrists/ok.svg) Wrists | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/hands/ok.svg) Hands |
+| ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/mainhand/ok.svg) Main hand | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/offhand/ok.svg) Off hand | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/ranged/ok.svg) Ranged | ![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/ok.svg) no item data |
+
+The same item at each durability level:
+
+![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/mainhand/ok.svg)
+![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/mainhand/warn.svg)
+![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/mainhand/critical.svg)
+![](../../streamdeck/com.devilcable.herodeck.sdPlugin/imgs/actions/durability/mainhand/nodata.svg)
 
 ## Install
 
