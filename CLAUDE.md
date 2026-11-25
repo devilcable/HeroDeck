@@ -16,6 +16,7 @@ addon/HeroDeck/            WoW addon (HeroDeck.toc, Core/Codec.lua, Core/Channel
                            Modules/Durability.lua, Modules/Slots.lua, Media/Icon.tga; SavedVariables HeroDeckDB)
 tools/make-icon.mjs        generates Media/Icon.tga and docs/user/img/icon.png (`npm run icon`)
 tools/make-slot-icons.mjs  generates the Durability key images, generic + one per slot × state (`npm run slot-icons`)
+tools/package.mjs          builds the release packages into dist/ (`npm run package`)
 addon/tests/               Vitest tests that run the addon's Lua through wasmoon (harness.ts mocks the WoW API)
 streamdeck/                Stream Deck plugin (@elgato/streamdeck 3.0.4, Node 24)
   src/channel/             screen pixel channel: protocol, decode, locate, strip, capture, reader
@@ -38,7 +39,8 @@ docs/superpowers/          specs and plans
 - In-game diagnostic (WoW running): `cd streamdeck && npm run probe` (add `-- --dump <dir>` to save the captured image as PNG)
 - Regenerate the addon icon: `npm run icon` (root)
 - Regenerate the Durability key images (`imgs/actions/durability/<state>.svg` and `<slot>/<state>.svg`): `npm run slot-icons` (root); `tests/slot-icons.test.ts` fails when the committed files differ from the script
-- CI: `.github/workflows/ci.yml` runs on pushes and PRs to `develop`/`main` (Ubuntu, Node 24): `npm ci` (root and `streamdeck/`), `npm test`, `tsc --noEmit`, `npm run build`, `streamdeck validate`. The property inspector uses the bundled `ui/sdpi-components.js` (v4.0.1); the manifest has no Node `Debug` setting (`tests/release.test.ts` guards both).
+- Build the install packages: `npm run package` (root) → `dist/com.devilcable.herodeck.streamDeckPlugin` and `dist/HeroDeck-addon-<version>.zip` (`tools/package.mjs`; run it on Windows, the plugin ships the win32-x64 `node-screenshots` binary). The version lives in `manifest.json` (`x.y.z.0`) and `HeroDeck.toc` (`x.y.z`); `tests/package.test.ts` keeps them equal.
+- CI: `.github/workflows/ci.yml` runs on pushes and PRs to `develop`/`main` (Ubuntu, Node 24): `npm ci` (root and `streamdeck/`), `npm test`, `tsc --noEmit`, `npm run build`, `streamdeck validate`, then a `windows-latest` job runs `npm run package` and uploads `dist/*` as the `herodeck-packages` artifact. The property inspector uses the bundled `ui/sdpi-components.js` (v4.0.1); the manifest has no Node `Debug` setting (`tests/release.test.ts` guards both).
 
 ## Channel (decided, see `docs/superpowers/specs/2026-11-18-durability-design.md` and `2026-11-20-minimap-button-design.md`)
 

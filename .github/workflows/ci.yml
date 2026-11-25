@@ -44,3 +44,33 @@ jobs:
       - name: Validate plugin
         run: npx streamdeck validate com.devilcable.herodeck.sdPlugin
         working-directory: streamdeck
+
+  package:
+    # Windows runner: the plugin ships the win32-x64 build of node-screenshots.
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            streamdeck/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install plugin dependencies
+        run: npm ci
+        working-directory: streamdeck
+
+      - name: Build the addon zip and the plugin package
+        run: npm run package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: herodeck-packages
+          path: dist/*
