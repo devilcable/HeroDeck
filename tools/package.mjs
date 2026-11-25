@@ -37,6 +37,16 @@ export function addonFiles(addonDir) {
   return files;
 }
 
+/** Runs `step`, then writes `file` back byte for byte, even when `step` throws. */
+export function withFileRestored(file, step) {
+  const original = readFileSync(file);
+  try {
+    return step();
+  } finally {
+    writeFileSync(file, original);
+  }
+}
+
 /** The addon zip: one top-level HeroDeck/ folder, ready to unzip into Interface\AddOns. */
 export function addonZip(addonDir) {
   return zipSync(addonFiles(addonDir), { level: 9, mtime: new Date("2026-01-01T00:00:00Z") });
@@ -49,7 +59,10 @@ function main() {
   mkdirSync(DIST, { recursive: true });
   const run = (cmd) => execSync(cmd, { cwd: STREAMDECK, stdio: "inherit" });
   run("npm run build");
-  run(`npx streamdeck pack ${PLUGIN} --force --no-update-check -o "${DIST}"`);
+  // streamdeck pack rewrites manifest.json (drops its final newline): keep the committed file as it is.
+  withFileRestored(join(STREAMDECK, PLUGIN, "manifest.json"), () =>
+    run(`npx streamdeck pack ${PLUGIN} --force --no-update-check -o "${DIST}"`),
+  );
 
   const zipName = `HeroDeck-addon-${toc}.zip`;
   writeFileSync(join(DIST, zipName), addonZip(ADDON));

@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM tool script, no type declarations
-import { addonZip, versions } from "../tools/package.mjs";
+import { addonZip, versions, withFileRestored } from "../tools/package.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ADDON = join(ROOT, "addon", "HeroDeck");
@@ -14,6 +15,29 @@ describe("release packages", () => {
     const v = versions();
     expect(v.toc).toBe("0.2.0");
     expect(v.manifest).toBe(`${v.toc}.0`);
+  });
+
+  it("puts back a file that a step rewrote (streamdeck pack drops the manifest's final newline)", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "herodeck-")), "manifest.json");
+    writeFileSync(file, '{\n\t"a": 1\n}\n');
+    const result = withFileRestored(file, () => {
+      writeFileSync(file, '{\n\t"a": 1\n}');
+      return 42;
+    });
+    expect(result).toBe(42);
+    expect(readFileSync(file, "utf8")).toBe('{\n\t"a": 1\n}\n');
+  });
+
+  it("puts the file back even when the step fails", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "herodeck-")), "manifest.json");
+    writeFileSync(file, "before\n");
+    expect(() =>
+      withFileRestored(file, () => {
+        writeFileSync(file, "after");
+        throw new Error("pack failed");
+      }),
+    ).toThrow("pack failed");
+    expect(readFileSync(file, "utf8")).toBe("before\n");
   });
 
   describe("addon zip", () => {
