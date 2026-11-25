@@ -83,6 +83,20 @@ export class SlotTable {
     return entry.value;
   }
 
+  /** Slot with the smallest fresh percent; ties go to the first slot in SLOT_KEYS order. Null when none has a percent. */
+  lowest(): SlotKey | null {
+    let best: SlotKey | null = null;
+    let bestValue = Infinity;
+    for (const slot of SLOT_KEYS) {
+      const value = this.value(slot);
+      if (typeof value === "number" && value < bestValue) {
+        best = slot;
+        bestValue = value;
+      }
+    }
+    return best;
+  }
+
   /** True while at least one slot has a value (not stalled, not expired). */
   hasData(): boolean {
     return SLOT_KEYS.some((slot) => this.value(slot) !== null);

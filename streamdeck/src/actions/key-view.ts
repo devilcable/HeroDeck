@@ -24,16 +24,16 @@ const SLOT_NAME_KEY: Record<SlotKey, string> = {
 /** Localization keys of the status words of a specific-item key. */
 const STATUS_KEY = { empty: "empty", none: "n/a" } as const;
 
-/** What a key shows: the most damaged item from field 0, or one equipped item from the slot table. */
+/** What a key shows: the most damaged item from field 0 (drawn as the table's lowest slot), or one equipped item from the slot table. */
 export function keyViewFor(
   settings: KeySettings,
   frame: ChannelFrame,
   table: SlotTable,
   translate: (key: string) => string,
 ): KeyView {
-  if (settings.item === "lowest") return viewFor(frame, settings.showPercent);
+  if (settings.item === "lowest") return viewFor(frame, settings.showPercent, table.lowest());
   const { item } = settings;
-  return slotViewFor(table.value(item), translate(SLOT_NAME_KEY[item]), settings.showPercent, (word) =>
+  return slotViewFor(table.value(item), item, translate(SLOT_NAME_KEY[item]), settings.showPercent, (word) =>
     translate(STATUS_KEY[word]),
   );
 }

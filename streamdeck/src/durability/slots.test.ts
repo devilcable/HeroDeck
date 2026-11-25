@@ -231,3 +231,36 @@ describe("SlotTable with the real cadence", () => {
     expect(checked).toBeGreaterThan(1000);
   });
 });
+
+describe("SlotTable.lowest", () => {
+  it("is the slot with the smallest percent", () => {
+    const { table } = makeTable();
+    table.update(frame(1, 80, 12, 50));
+    expect(table.lowest()).toBe("legs");
+  });
+
+  it("goes to the first slot in SLOT_KEYS order on a tie", () => {
+    const { table, advance } = makeTable();
+    table.update(frame(1, 80, 12, 50));
+    advance(1000);
+    table.update(frame(0, 12, 90, 90));
+    expect(table.lowest()).toBe("head");
+  });
+
+  it("is null on a fresh table", () => {
+    expect(makeTable().table.lowest()).toBeNull();
+  });
+
+  it("is null when only empty slots and items without durability were seen", () => {
+    const { table } = makeTable();
+    table.update(frame(3, 254, 253, 255));
+    expect(table.lowest()).toBeNull();
+  });
+
+  it("is null once the page stalls", () => {
+    const { table, advance } = makeTable();
+    table.update(frame(1, 80, 12, 50));
+    advance(STALL_MS + 1);
+    expect(table.lowest()).toBeNull();
+  });
+});

@@ -37,8 +37,13 @@ describe("stateFor", () => {
 });
 
 describe("imageFor", () => {
-  it("points at the state's svg", () => {
+  it("points at the state's generic svg without a slot", () => {
     expect(imageFor("warn")).toBe("imgs/actions/durability/warn.svg");
+    expect(imageFor("warn", null)).toBe("imgs/actions/durability/warn.svg");
+  });
+
+  it("points at the slot's svg with a slot", () => {
+    expect(imageFor("warn", "head")).toBe("imgs/actions/durability/head/warn.svg");
   });
 });
 
@@ -62,6 +67,14 @@ describe("viewFor", () => {
   it("combines state image and title", () => {
     expect(viewFor({ fields: [30] }, true)).toEqual({ image: "imgs/actions/durability/warn.svg", title: "30%" });
     expect(viewFor({ fields: [5] }, false)).toEqual({ image: "imgs/actions/durability/critical.svg", title: "" });
+  });
+
+  it("draws the given slot", () => {
+    expect(viewFor({ fields: [30] }, true, "legs").image).toBe("imgs/actions/durability/legs/warn.svg");
+  });
+
+  it("stays the generic grey armor for nodata, whatever the slot", () => {
+    expect(viewFor(null, true, "legs").image).toBe("imgs/actions/durability/nodata.svg");
   });
 });
 
@@ -92,37 +105,37 @@ describe("slotViewFor", () => {
   const en = (key: "empty" | "none") => (key === "empty" ? "empty" : "n/a");
 
   it("shows the label and the percent", () => {
-    expect(slotViewFor(87, "Arme", true, fr)).toEqual({ image: "imgs/actions/durability/ok.svg", title: "Arme\n87%" });
+    expect(slotViewFor(87, "mainhand", "Arme", true, fr)).toEqual({ image: "imgs/actions/durability/mainhand/ok.svg", title: "Arme\n87%" });
   });
 
   it("drops only the percent when the percentage is off", () => {
-    expect(slotViewFor(87, "Arme", false, fr)).toEqual({ image: "imgs/actions/durability/ok.svg", title: "Arme" });
+    expect(slotViewFor(87, "mainhand", "Arme", false, fr)).toEqual({ image: "imgs/actions/durability/mainhand/ok.svg", title: "Arme" });
   });
 
   it("empty slot: nodata image and translated word", () => {
-    expect(slotViewFor("empty", "Main G.", true, fr)).toEqual({
-      image: "imgs/actions/durability/nodata.svg",
+    expect(slotViewFor("empty", "offhand", "Main G.", true, fr)).toEqual({
+      image: "imgs/actions/durability/offhand/nodata.svg",
       title: "Main G.\nvide",
     });
-    expect(slotViewFor("empty", "Off hand", true, en).title).toBe("Off hand\nempty");
+    expect(slotViewFor("empty", "offhand", "Off hand", true, en).title).toBe("Off hand\nempty");
   });
 
   it("item without durability: nodata image and translated word", () => {
-    expect(slotViewFor("none", "Main G.", true, fr)).toEqual({
-      image: "imgs/actions/durability/nodata.svg",
+    expect(slotViewFor("none", "offhand", "Main G.", true, fr)).toEqual({
+      image: "imgs/actions/durability/offhand/nodata.svg",
       title: "Main G.\nsans",
     });
-    expect(slotViewFor("none", "Off hand", true, en).title).toBe("Off hand\nn/a");
+    expect(slotViewFor("none", "offhand", "Off hand", true, en).title).toBe("Off hand\nn/a");
   });
 
   it("status words stay when the percentage is off", () => {
-    expect(slotViewFor("empty", "Main G.", false, fr).title).toBe("Main G.\nvide");
-    expect(slotViewFor("none", "Main G.", false, fr).title).toBe("Main G.\nsans");
+    expect(slotViewFor("empty", "offhand", "Main G.", false, fr).title).toBe("Main G.\nvide");
+    expect(slotViewFor("none", "offhand", "Main G.", false, fr).title).toBe("Main G.\nsans");
   });
 
   it("no data shows --", () => {
-    expect(slotViewFor(null, "Arme", true, fr)).toEqual({
-      image: "imgs/actions/durability/nodata.svg",
+    expect(slotViewFor(null, "mainhand", "Arme", true, fr)).toEqual({
+      image: "imgs/actions/durability/mainhand/nodata.svg",
       title: "Arme\n--",
     });
   });
@@ -134,6 +147,6 @@ describe("slotViewFor", () => {
     [19, "critical"],
     [0, "critical"],
   ] as const)("%s percent uses the %s image", (percent, state) => {
-    expect(slotViewFor(percent, "X", true, fr).image).toBe(`imgs/actions/durability/${state}.svg`);
+    expect(slotViewFor(percent, "feet", "X", true, fr).image).toBe(`imgs/actions/durability/feet/${state}.svg`);
   });
 });

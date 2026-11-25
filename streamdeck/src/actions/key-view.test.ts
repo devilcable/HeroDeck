@@ -33,7 +33,8 @@ describe("keyViewFor", () => {
   it("renders the slot view for a specific item with dot-free translation keys", () => {
     const frame = { fields: [42, 2, 87, 10, 55] };
     const view = keyViewFor({ showPercent: true, item: "wrists" }, frame, tableWith(frame), translate);
-    expect(view).toEqual(slotViewFor(87, "<Wrists>", true, translate));
+    expect(view).toEqual(slotViewFor(87, "wrists", "<Wrists>", true, translate));
+    expect(view.image).toBe("imgs/actions/durability/wrists/ok.svg");
     expect(view.title).toBe("<Wrists>\n87%");
   });
 
@@ -57,6 +58,24 @@ describe("keyViewFor", () => {
     }
     expect(asked.size).toBe(13);
     for (const key of asked) expect(key).not.toContain(".");
+  });
+
+  it("draws the most damaged item on a lowest key, with field 0's percent", () => {
+    const frame = { fields: [12, 1, 80, 90, 12] };
+    const view = keyViewFor({ showPercent: true, item: "lowest" }, frame, tableWith(frame), translate);
+    expect(view).toEqual({ image: "imgs/actions/durability/feet/critical.svg", title: "12%" });
+  });
+
+  it("draws the generic armor on a lowest key while the table has no item", () => {
+    const frame = { fields: [42, null, null, null, null] };
+    const view = keyViewFor({ showPercent: true, item: "lowest" }, frame, new SlotTable(() => 0), translate);
+    expect(view.image).toBe("imgs/actions/durability/warn.svg");
+  });
+
+  it("draws the generic grey armor on a lowest key when field 0 is no data", () => {
+    const table = tableWith({ fields: [12, 1, 80, 90, 12] });
+    const view = keyViewFor({ showPercent: true, item: "lowest" }, null, table, translate);
+    expect(view.image).toBe("imgs/actions/durability/nodata.svg");
   });
 
   it("shows no data for an item the table has not seen", () => {
