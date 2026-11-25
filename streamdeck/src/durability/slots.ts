@@ -83,6 +83,14 @@ export class SlotTable {
     return entry.value;
   }
 
+  /**
+   * First slot (SLOT_KEYS order) whose fresh value is exactly `percent`; null when none is. Both sides round the
+   * same way in the addon, so a fresh slot value equals field 0's percent exactly.
+   */
+  slotWith(percent: number): SlotKey | null {
+    return SLOT_KEYS.find((slot) => this.value(slot) === percent) ?? null;
+  }
+
   /** True while at least one slot has a value (not stalled, not expired). */
   hasData(): boolean {
     return SLOT_KEYS.some((slot) => this.value(slot) !== null);
